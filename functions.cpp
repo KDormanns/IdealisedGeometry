@@ -913,15 +913,20 @@ void store_arrays(parms p, double** fx, double** fy, double** fz, double**** sto
 	}
 }
 /*************************************************************************************************************/
-void format_primitive(parms p, double**** storage, char *prefix, int downstream_offset, int upstream_offset)
+int* format_primitive(parms p, double**** storage, char *prefix, int downstream_offset, int upstream_offset)
 /*************************************************************************************************************/
 {
 
-	FILE *f, *f_tmp;
-	char filename[50];
+	FILE *f, *f_tmp, *f_points, *f_cells;
+	char filename[50], txtfile[50];
 	int err = sprintf(filename, "%s.vtk", prefix);
+	err = sprintf(txtfile, "%s_points.txt", prefix);
+	int *info = (int*) malloc(2 * sizeof(int));
 
 	f = fopen(filename, "w+");
+	f_points = fopen(txtfile, "w+");
+	err = sprintf(txtfile, "%s_cells.txt", prefix);
+	f_cells = fopen(txtfile, "w+");
 
 	fprintf(f, "# vtk DataFile Version 2.0\n");
 	fprintf(f, "Default Set with interval=1s\n");
@@ -933,7 +938,8 @@ void format_primitive(parms p, double**** storage, char *prefix, int downstream_
 	int Total_pannels_axially = (((p.nx - upstream_offset) - downstream_offset) - 1), Total_pannels_circumferentially = (2 * p.ny - 1);
 
 	int TotalNumberOfCells = Total_pannels_axially * Total_pannels_circumferentially;
-
+	info[0] = TotalNumberOfPoints;
+	info[1] = TotalNumberOfCells;
 	double ***buffer = (double***) malloc(3 * sizeof(double**));
 	for (int i = 0; i < 3; i++) {
 		buffer[i] = (double**) malloc(((p.nx - upstream_offset) - downstream_offset) * sizeof(double*));
@@ -943,12 +949,13 @@ void format_primitive(parms p, double**** storage, char *prefix, int downstream_
 			buffer[i][j] = (double*) malloc(2 * p.ny * sizeof(double));
 		}
 	}
-
 	int j_offset = p.ny;
 	fprintf(f, "POINTS %d double\n", TotalNumberOfPoints);
 	for (int i = 0 + downstream_offset; i < (p.nx - upstream_offset); i++) {
 		for (int j = 0; j < p.ny; j++) {
 			fprintf(f, "%2.12lf %2.12lf %2.12lf\n", storage[RIGHT][x_coord][i][j] * 1e-3, storage[RIGHT][y_coord][i][j] * 1e-3,
+					storage[RIGHT][z_coord][i][j] * 1e-3);
+			fprintf(f_points, "%2.12lf %2.12lf %2.12lf\n", storage[RIGHT][x_coord][i][j] * 1e-3, storage[RIGHT][y_coord][i][j] * 1e-3,
 					storage[RIGHT][z_coord][i][j] * 1e-3);
 			buffer[x_coord][i - downstream_offset][j] = storage[RIGHT][x_coord][i][j] * 1e-3;
 			buffer[y_coord][i - downstream_offset][j] = storage[RIGHT][y_coord][i][j] * 1e-3;
@@ -957,6 +964,8 @@ void format_primitive(parms p, double**** storage, char *prefix, int downstream_
 
 		for (int j = 0; j < p.ny; j++) {
 			fprintf(f, "%2.12lf %2.12lf %2.12lf\n", storage[LEFT][x_coord][i][j] * 1e-3, storage[LEFT][y_coord][i][j] * 1e-3,
+					storage[LEFT][z_coord][i][j] * 1e-3);
+			fprintf(f_points, "%2.12lf %2.12lf %2.12lf\n", storage[LEFT][x_coord][i][j] * 1e-3, storage[LEFT][y_coord][i][j] * 1e-3,
 					storage[LEFT][z_coord][i][j] * 1e-3);
 			buffer[x_coord][i - downstream_offset][j + j_offset] = storage[LEFT][x_coord][i][j] * 1e-3;
 			buffer[y_coord][i - downstream_offset][j + j_offset] = storage[LEFT][y_coord][i][j] * 1e-3;
@@ -969,6 +978,8 @@ void format_primitive(parms p, double**** storage, char *prefix, int downstream_
 	for (int i = 0 + downstream_offset; i < (p.nx - 1 - upstream_offset); i++) {
 		for (int j = 0; j < row_offset - 1; j++) {
 			fprintf(f, "%d %d %d %d %d\n", 4, ((i - downstream_offset) * row_offset) + j, (((i - downstream_offset) + 1) * row_offset) + j,
+					(((i - downstream_offset) + 1) * row_offset) + j + 1, ((i - downstream_offset) * row_offset) + j + 1);
+			fprintf(f_cells, "%d %d %d %d %d\n", 4, ((i - downstream_offset) * row_offset) + j, (((i - downstream_offset) + 1) * row_offset) + j,
 					(((i - downstream_offset) + 1) * row_offset) + j + 1, ((i - downstream_offset) * row_offset) + j + 1);
 		}
 	}
@@ -984,7 +995,11 @@ void format_primitive(parms p, double**** storage, char *prefix, int downstream_
 			smc_mesh_ver2(p, storage, buffer, Total_pannels_axially, Total_pannels_circumferentially, downstream_offset, upstream_offset, prefix));
 	printf("\ntotal ec pannels = %d\n",
 			ec_mesh_ver2(p, storage, buffer, Total_pannels_axially, Total_pannels_circumferentially, downstream_offset, upstream_offset, prefix));
+	fclose(f);
+	fclose(f_points);
+	fclose(f_cells);
 
+	return (info);
 }
 
 int smc_mesh_ver2(parms p, double**** storage, double*** buffer, int Total_pannels_axially, int Total_pannels_circumferentially,
@@ -1087,10 +1102,15 @@ int smc_mesh_ver2(parms p, double**** storage, double*** buffer, int Total_panne
 	}
 
 	/// Now writing a VTK file
-	FILE *fw;
-	char filename[50];
+	FILE *fw, *f_points, *f_cells;
+
+	char filename[50], fname_points[50], fname_cells[50];
 	sprintf(filename, "smc_mesh_%s.vtk", prefix);
+	sprintf(fname_points, "%s_smc_mesh_points.txt", prefix);
+	sprintf(fname_cells, "%s_smc_mesh_cells.txt", prefix);
 	fw = fopen(filename, "w+");
+	f_points = fopen(fname_points, "w+");
+	f_cells = fopen(fname_cells, "w+");
 
 	fprintf(fw, "# vtk DataFile Version 3.0\n");
 	fprintf(fw, "SMC mesh\n");
@@ -1102,6 +1122,7 @@ int smc_mesh_ver2(parms p, double**** storage, double*** buffer, int Total_panne
 			for (int p = 0; p < m; p++) {
 				for (int q = 0; q < n; q++) {
 					fprintf(fw, "%2.8lf %2.8lf %2.8lf\n", mesh[i][j].x[p][q], mesh[i][j].y[p][q], mesh[i][j].z[p][q]);
+					fprintf(f_points, "%2.8lf %2.8lf %2.8lf\n", mesh[i][j].x[p][q], mesh[i][j].y[p][q], mesh[i][j].z[p][q]);
 				}
 			}
 		}
@@ -1110,6 +1131,8 @@ int smc_mesh_ver2(parms p, double**** storage, double*** buffer, int Total_panne
 				for (int q = 0; q < n; q++) {
 					fprintf(fw, "%2.8lf %2.8lf %2.8lf\n", mesh[i][j + j_offset].x[p][q], mesh[i][j + j_offset].y[p][q],
 							mesh[i][j + j_offset].z[p][q]);
+					fprintf(f_points, "%2.8lf %2.8lf %2.8lf\n", mesh[i][j].x[p][q], mesh[i][j].y[p][q], mesh[i][j].z[p][q]);
+
 				}
 			}
 		}
@@ -1123,6 +1146,8 @@ int smc_mesh_ver2(parms p, double**** storage, double*** buffer, int Total_panne
 			for (int p = 0; p < m - 1; p++) {
 				for (int q = 0; q < n - 1; q++) {
 					fprintf(fw, "%d %d %d %d %d\n", 4, cell_offset + p * row_offset + q, cell_offset + p * row_offset + (q + 1),
+							cell_offset + (p + 1) * row_offset + (q + 1), cell_offset + (p + 1) * row_offset + q);
+					fprintf(f_cells, "%d %d %d %d\n", cell_offset + p * row_offset + q, cell_offset + p * row_offset + (q + 1),
 							cell_offset + (p + 1) * row_offset + (q + 1), cell_offset + (p + 1) * row_offset + q);
 				}
 			}
@@ -1141,6 +1166,8 @@ int smc_mesh_ver2(parms p, double**** storage, double*** buffer, int Total_panne
 		}
 	}
 	fclose(fw);
+	fclose(f_points);
+	fclose(f_cells);
 	return (indx);
 }
 int ec_mesh_ver2(parms p, double**** storage, double*** buffer, int Total_pannels_axially, int Total_pannels_circumferentially, int downstream_offset,
@@ -1247,10 +1274,15 @@ int ec_mesh_ver2(parms p, double**** storage, double*** buffer, int Total_pannel
 	}
 
 	/// Now writing a VTK file
-	FILE *fw;
-	char filename[50];
+	FILE *fw, *f_points, *f_cells;
+
+	char filename[50], fname_points[50], fname_cells[50];
 	sprintf(filename, "ec_mesh_%s.vtk", prefix);
+	sprintf(fname_points, "%s_ec_mesh_points.txt", prefix);
+	sprintf(fname_cells, "%s_ec_mesh_cells.txt", prefix);
 	fw = fopen(filename, "w+");
+	f_points = fopen(fname_points, "w+");
+	f_cells = fopen(fname_cells, "w+");
 
 	fprintf(fw, "# vtk DataFile Version 3.0\n");
 	fprintf(fw, "EC mesh\n");
@@ -1262,6 +1294,7 @@ int ec_mesh_ver2(parms p, double**** storage, double*** buffer, int Total_pannel
 			for (int p = 0; p < m; p++) {
 				for (int q = 0; q < n; q++) {
 					fprintf(fw, "%2.8lf %2.8lf %2.8lf\n", mesh[i][j].x[p][q], mesh[i][j].y[p][q], mesh[i][j].z[p][q]);
+					fprintf(f_points, "%2.8lf %2.8lf %2.8lf\n", mesh[i][j].x[p][q], mesh[i][j].y[p][q], mesh[i][j].z[p][q]);
 				}
 			}
 		}
@@ -1269,6 +1302,8 @@ int ec_mesh_ver2(parms p, double**** storage, double*** buffer, int Total_pannel
 			for (int p = 0; p < m; p++) {
 				for (int q = 0; q < n; q++) {
 					fprintf(fw, "%2.8lf %2.8lf %2.8lf\n", mesh[i][j + j_offset].x[p][q], mesh[i][j + j_offset].y[p][q],
+							mesh[i][j + j_offset].z[p][q]);
+					fprintf(f_points, "%2.8lf %2.8lf %2.8lf\n", mesh[i][j + j_offset].x[p][q], mesh[i][j + j_offset].y[p][q],
 							mesh[i][j + j_offset].z[p][q]);
 				}
 			}
@@ -1283,6 +1318,8 @@ int ec_mesh_ver2(parms p, double**** storage, double*** buffer, int Total_pannel
 			for (int p = 0; p < m - 1; p++) {
 				for (int q = 0; q < n - 1; q++) {
 					fprintf(fw, "%d %d %d %d %d\n", 4, cell_offset + p * row_offset + q, cell_offset + p * row_offset + (q + 1),
+							cell_offset + (p + 1) * row_offset + (q + 1), cell_offset + (p + 1) * row_offset + q);
+					fprintf(f_cells, "%d %d %d %d\n", cell_offset + p * row_offset + q, cell_offset + p * row_offset + (q + 1),
 							cell_offset + (p + 1) * row_offset + (q + 1), cell_offset + (p + 1) * row_offset + q);
 					mesh[i][j].cx[p][q] = (mesh[i][j].x[p][q] + mesh[i][j].x[p][q + 1] /*+ mesh[i][j].x[(p + 1)][q + 1], mesh[i][j].x[(p + 1)][q]*/)
 							/ 2;
@@ -1306,10 +1343,18 @@ int ec_mesh_ver2(parms p, double**** storage, double*** buffer, int Total_pannel
 		}
 	}
 	fclose(fw);
+	fclose(f_points);
+	fclose(f_cells);
 
 	char centeroid_file[50];
 	sprintf(centeroid_file, "ec_centeroid_%s.vtk", prefix);
+	sprintf(fname_points, "%s_ec_centeroid_points.txt", prefix);
+	sprintf(fname_cells, "%s_ec_centeroid_cells.txt", prefix);
+
 	fw = fopen(centeroid_file, "w+");
+	f_points = fopen(fname_points, "w+");
+	f_cells = fopen(fname_cells, "w+");
+
 	fprintf(fw, "# vtk DataFile Version 3.0\n");
 	fprintf(fw, "EC centeroids % branch\n", prefix);
 	fprintf(fw, "ASCII\n");
@@ -1320,6 +1365,7 @@ int ec_mesh_ver2(parms p, double**** storage, double*** buffer, int Total_pannel
 			for (int p = 0; p < m - 1; p++) {
 				for (int q = 0; q < n - 1; q++) {
 					fprintf(fw, "%2.8lf %2.8lf %2.8lf\n", mesh[i][j].cx[p][q], mesh[i][j].cy[p][q], mesh[i][j].cz[p][q]);
+					fprintf(f_points, "%2.8lf %2.8lf %2.8lf\n", mesh[i][j].cx[p][q], mesh[i][j].cy[p][q], mesh[i][j].cz[p][q]);
 				}
 			}
 		}
@@ -1331,6 +1377,7 @@ int ec_mesh_ver2(parms p, double**** storage, double*** buffer, int Total_pannel
 			for (int p = 0; p < m - 1; p++) {
 				for (int q = 0; q < n - 1; q++) {
 					fprintf(fw, "%d %d\n", 1, count);
+					fprintf(f_cells, "%d\n", count);
 					count++;
 				}
 			}
@@ -1347,6 +1394,27 @@ int ec_mesh_ver2(parms p, double**** storage, double*** buffer, int Total_pannel
 		}
 	}
 	fclose(fw);
+	fclose(f_points);
+	fclose(f_cells);
 
 	return (indx);
+}
+
+void bound_v_correction(parms p, double**** storage, int downstream_offset, int upstream_offset) {
+
+	for (int i = 0 + downstream_offset; i < (p.nx - upstream_offset) - 1; i++) {
+		storage[RIGHT][x_coord][i][p.ny - 1] = (storage[RIGHT][x_coord][i][p.ny - 1 - 1] + storage[LEFT][x_coord][i][1]) / 2;
+		storage[RIGHT][y_coord][i][p.ny - 1] = (storage[RIGHT][y_coord][i][p.ny - 1 - 1] + storage[LEFT][y_coord][i][1]) / 2;
+		//storage[RIGHT][z_coord][i][p.ny - 1] = (storage[RIGHT][z_coord][i][p.ny - 1 - 1] + storage[LEFT][z_coord][i][1]) / 2;
+		storage[LEFT][x_coord][i][0] = (storage[RIGHT][x_coord][i][p.ny - 1 - 1] + storage[LEFT][x_coord][i][1]) / 2;
+		storage[LEFT][y_coord][i][0] = (storage[RIGHT][y_coord][i][p.ny - 1 - 1] + storage[LEFT][y_coord][i][1]) / 2;
+		//storage[LEFT][z_coord][i][0] 		 = (storage[RIGHT][z_coord][i][p.ny - 1 - 1] + storage[LEFT][z_coord][i][1]) / 2;
+
+		storage[LEFT][x_coord][i][p.ny - 1] = (storage[LEFT][x_coord][i][p.ny - 1 - 1] + storage[RIGHT][x_coord][i][1]) / 2;
+		storage[LEFT][y_coord][i][p.ny - 1] = (storage[LEFT][y_coord][i][p.ny - 1 - 1] + storage[RIGHT][y_coord][i][1]) / 2;
+		//storage[LEFT][z_coord][i][p.ny - 1] = (storage[LEFT][z_coord][i][p.ny - 1 - 1] + storage[RIGHT][z_coord][i][1]) / 2;
+		storage[RIGHT][x_coord][i][0] = (storage[LEFT][x_coord][i][p.ny - 1 - 1] + storage[RIGHT][x_coord][i][1]) / 2;
+		storage[RIGHT][y_coord][i][0] = (storage[LEFT][y_coord][i][p.ny - 1 - 1] + storage[RIGHT][y_coord][i][1]) / 2;
+		//storage[RIGHT][z_coord][i][0] 		 = (storage[LEFT][z_coord][i][p.ny - 1 - 1] + storage[RIGHT][z_coord][i][1]) / 2;
+	}
 }

@@ -32,7 +32,7 @@ int main(int argc, char* argv[]) {
 	p.r = 0.95; // radius of intersecting cylinder where 0.636 <= r <=0.9886
 
 	p.s0 = 1.5;
-	p.s1 = 0.5;
+	p.s1 = 1.0;
 
 	p.A1 = p.c1;
 	p.B1 = 0;
@@ -47,9 +47,9 @@ int main(int argc, char* argv[]) {
 	p.v1 = acos(p.xc / p.c1);
 	p.v2 = acos(-(p.xc - p.r * sin(p.alfa)) / (p.c2 * cos(p.alfa)));
 
-	p.m = 51;
-	p.n = 11;
-	int parent_grid_point_skip = 20, daughter_grid_point_skip = 20;
+	p.m = 13;
+	p.n = 5;
+	int parent_grid_point_skip = 3, daughter_grid_point_skip = 3;
 	int downstream_offset, upstream_offset;
 
 	p.nx = p.m + 2;
@@ -89,6 +89,10 @@ int main(int argc, char* argv[]) {
 	initialize_bd(p.m, bdc);
 	initialize_bd(p.m, bdd);
 	double ****storage = allocate_storage_array(p.nx, p.ny);
+	int* info = (int*) malloc(2 * sizeof(int));
+
+	double* total_points = (double*) malloc(3 * info[0] * sizeof(double));
+	int* total_cells = (int*) malloc(3 * info[1] * sizeof(int));
 
 	/***** Solving for parent segment ******/
 
@@ -159,7 +163,8 @@ int main(int argc, char* argv[]) {
 
 	downstream_offset = 0;
 	upstream_offset = parent_grid_point_skip;
-	format_primitive(p, storage, "parent", downstream_offset, upstream_offset);
+	bound_v_correction(p, storage, downstream_offset, upstream_offset);
+	info = format_primitive(p, storage, "parent", downstream_offset, upstream_offset);
 
 	/***** Solving for Left daughter segment ******/
 
@@ -171,14 +176,14 @@ int main(int argc, char* argv[]) {
 	dirichlet_boundary_outer_wall(p, fx, fy, fz);
 
 	for (int k = 0; k < p.n; k++) {
-		bda[k] = 0;
-		bdb[k] = p.s1 * cos(p.angle);
+		bda[k] = p.s1 * cos(p.angle);
+		bdb[k] = 0;
 	}
 
 	fx = solve(p, bda, bdb, bdc, bdd, fx, idf, iflag, tol, itcg, w, lw);
 	for (int k = 0; k < p.n; k++) {
-		bda[k] = -p.s0;
-		bdb[k] = p.s1 * sin(p.angle);
+		bda[k] = p.s1 * sin(p.angle);
+		bdb[k] = -p.s0;
 	}
 
 	fy = solve(p, bda, bdb, bdc, bdd, fy, idf, iflag, tol, itcg, w, lw);
@@ -201,14 +206,14 @@ int main(int argc, char* argv[]) {
 	p.d = 3 * pi / 2;
 	dirichlet_boundary_inner_wall(p, fx, fy, fz);
 	for (int k = 0; k < p.n; k++) {
-		bda[k] = -p.s0 * sin(p.angle);
-		bdb[k] = -p.s1 * cos(p.angle);
+		bda[k] = -p.s1 * cos(p.angle);
+		bdb[k] = p.s0 * sin(p.angle);
 	}
 	fx = solve(p, bda, bdb, bdc, bdd, fx, idf, iflag, tol, itcg, w, lw);
 
 	for (int k = 0; k < p.n; k++) {
-		bda[k] = -p.s0 * cos(p.angle);
-		bdb[k] = -p.s1 * sin(p.angle);
+		bda[k] = -p.s1 * sin(p.angle);
+		bdb[k] = -p.s0 * cos(p.angle);
 	}
 	fy = solve(p, bda, bdb, bdc, bdd, fy, idf, iflag, tol, itcg, w, lw);
 	for (int k = 0; k < p.n; k++) {
@@ -226,6 +231,7 @@ int main(int argc, char* argv[]) {
 
 	downstream_offset = daughter_grid_point_skip;
 	upstream_offset = 0;
+	bound_v_correction(p, storage, downstream_offset, upstream_offset);
 	format_primitive(p, storage, "left_daughter", downstream_offset, upstream_offset);
 
 	/***** Solving for Right daughter segment ******/
@@ -238,14 +244,14 @@ int main(int argc, char* argv[]) {
 	dirichlet_boundary_outer_wall(p, fx, fy, fz);
 
 	for (int k = 0; k < p.n; k++) {
-		bda[k] = 0;
-		bdb[k] = p.s1 * cos(p.angle);
+		bda[k] = p.s1 * cos(p.angle);
+		bdb[k] = 0;
 	}
 
 	fx = solve(p, bda, bdb, bdc, bdd, fx, idf, iflag, tol, itcg, w, lw);
 	for (int k = 0; k < p.n; k++) {
-		bda[k] = -p.s0;
-		bdb[k] = p.s1 * sin(p.angle);
+		bda[k] = p.s1 * sin(p.angle);
+		bdb[k] = -p.s0;
 	}
 
 	fy = solve(p, bda, bdb, bdc, bdd, fy, idf, iflag, tol, itcg, w, lw);
@@ -268,14 +274,14 @@ int main(int argc, char* argv[]) {
 	p.d = 2 * pi + pi / 2;
 	dirichlet_boundary_inner_wall(p, fx, fy, fz);
 	for (int k = 0; k < p.n; k++) {
-		bda[k] = -p.s0 * sin(p.angle);
-		bdb[k] = -p.s1 * cos(p.angle);
+		bda[k] = -p.s1 * cos(p.angle);
+		bdb[k] = -p.s0 * sin(p.angle);
 	}
 	fx = solve(p, bda, bdb, bdc, bdd, fx, idf, iflag, tol, itcg, w, lw);
 
 	for (int k = 0; k < p.n; k++) {
-		bda[k] = -p.s0 * cos(p.angle);
-		bdb[k] = -p.s1 * sin(p.angle);
+		bda[k] = -p.s1 * sin(p.angle);
+		bdb[k] = -p.s0 * cos(p.angle);
 	}
 	fy = solve(p, bda, bdb, bdc, bdd, fy, idf, iflag, tol, itcg, w, lw);
 	for (int k = 0; k < p.n; k++) {
@@ -293,6 +299,7 @@ int main(int argc, char* argv[]) {
 
 	downstream_offset = daughter_grid_point_skip;
 	upstream_offset = 0;
+	bound_v_correction(p, storage, downstream_offset, upstream_offset);
 	format_primitive(p, storage, "right_daughter", downstream_offset, upstream_offset);
 
 	/******* Forming end_caps on inlet and outlets ********/
