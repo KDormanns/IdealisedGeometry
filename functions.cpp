@@ -1131,7 +1131,8 @@ int smc_mesh_ver2(parms p, double**** storage, double*** buffer, int Total_panne
 				for (int q = 0; q < n; q++) {
 					fprintf(fw, "%2.8lf %2.8lf %2.8lf\n", mesh[i][j + j_offset].x[p][q], mesh[i][j + j_offset].y[p][q],
 							mesh[i][j + j_offset].z[p][q]);
-					fprintf(f_points, "%2.8lf %2.8lf %2.8lf\n", mesh[i][j].x[p][q], mesh[i][j].y[p][q], mesh[i][j].z[p][q]);
+					fprintf(f_points, "%2.8lf %2.8lf %2.8lf\n", mesh[i][j + j_offset].x[p][q], mesh[i][j + j_offset].y[p][q],
+												mesh[i][j + j_offset].z[p][q]);
 
 				}
 			}
