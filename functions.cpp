@@ -921,7 +921,7 @@ int* format_primitive(parms p, double**** storage, char *prefix, int downstream_
 	char filename[50], txtfile[50];
 	int err = sprintf(filename, "%s.vtk", prefix);
 	err = sprintf(txtfile, "%s_points.txt", prefix);
-	int *info = (int*) malloc(2 * sizeof(int));
+	int *info = (int*) malloc(19 * sizeof(int));
 
 	f = fopen(filename, "w+");
 	f_points = fopen(txtfile, "w+");
@@ -935,11 +935,16 @@ int* format_primitive(parms p, double**** storage, char *prefix, int downstream_
 	fprintf(f, "DATASET UNSTRUCTURED_GRID\n");
 
 	int TotalNumberOfPoints = (((p.nx - upstream_offset) - downstream_offset) * 2 * p.ny);
-	int Total_pannels_axially = (((p.nx - upstream_offset) - downstream_offset) - 1), Total_pannels_circumferentially = (2 * p.ny - 1);
-
-	int TotalNumberOfCells = Total_pannels_axially * Total_pannels_circumferentially;
 	info[0] = TotalNumberOfPoints;
-	info[1] = TotalNumberOfCells;
+	info[1] = ((p.nx - upstream_offset) - downstream_offset);
+	info[2] = 2 * p.ny;
+
+	int Total_pannels_axially = (((p.nx - upstream_offset) - downstream_offset) - 1);
+	int Total_pannels_circumferentially = (2 * p.ny - 1);
+	int TotalNumberOfCells = Total_pannels_axially * Total_pannels_circumferentially;
+	info[3] = TotalNumberOfCells;
+	info[4] = Total_pannels_axially;
+	info[5] = Total_pannels_circumferentially;
 	double ***buffer = (double***) malloc(3 * sizeof(double**));
 	for (int i = 0; i < 3; i++) {
 		buffer[i] = (double**) malloc(((p.nx - upstream_offset) - downstream_offset) * sizeof(double*));
@@ -991,10 +996,25 @@ int* format_primitive(parms p, double**** storage, char *prefix, int downstream_
 	}
 
 	format_stl(p, buffer, prefix, Total_pannels_axially, Total_pannels_circumferentially);
-	printf("\ntotal smc pannels = %d\n",
-			smc_mesh_ver2(p, storage, buffer, Total_pannels_axially, Total_pannels_circumferentially, downstream_offset, upstream_offset, prefix));
-	printf("\ntotal ec pannels = %d\n",
-			ec_mesh_ver2(p, storage, buffer, Total_pannels_axially, Total_pannels_circumferentially, downstream_offset, upstream_offset, prefix));
+	int* info_smc = (int*) malloc(6*sizeof(int));
+	info_smc = smc_mesh_ver2(p, storage, buffer, Total_pannels_axially, Total_pannels_circumferentially, downstream_offset, upstream_offset, prefix);
+	int* info_ec = (int*) malloc(7*sizeof(int));
+	info_ec = ec_mesh_ver2(p, storage, buffer, Total_pannels_axially, Total_pannels_circumferentially, downstream_offset, upstream_offset, prefix);
+
+	info[6] = info_smc[0];
+	info[7] = info_smc[1];
+	info[8] = info_smc[2];
+	info[9] = info_smc[3];
+	info[10]= info_smc[4];
+	info[11]= info_smc[5];
+
+	info[12]= info_ec[0];
+	info[13]= info_ec[1];
+	info[14]= info_ec[2];
+	info[15]= info_ec[3];
+	info[16]= info_ec[4];
+	info[17]= info_ec[5];
+	info[18]= info_ec[6];
 	fclose(f);
 	fclose(f_points);
 	fclose(f_cells);
@@ -1002,9 +1022,9 @@ int* format_primitive(parms p, double**** storage, char *prefix, int downstream_
 	return (info);
 }
 
-int smc_mesh_ver2(parms p, double**** storage, double*** buffer, int Total_pannels_axially, int Total_pannels_circumferentially,
+int* smc_mesh_ver2(parms p, double**** storage, double*** buffer, int Total_pannels_axially, int Total_pannels_circumferentially,
 		int downstream_offset, int upstream_offset, char* prefix) {
-
+	int* info = (int*) malloc(6 * sizeof(int));
 	mesh_store **mesh = (mesh_store**) malloc(Total_pannels_axially * sizeof(mesh_store*));
 	for (int i = 0; i < Total_pannels_axially; i++) {
 		mesh[i] = (mesh_store*) malloc(Total_pannels_circumferentially * sizeof(mesh_store));
@@ -1117,6 +1137,11 @@ int smc_mesh_ver2(parms p, double**** storage, double*** buffer, int Total_panne
 	fprintf(fw, "ASCII\n");
 	fprintf(fw, "DATASET UNSTRUCTURED_GRID\n");
 	fprintf(fw, "POINTS %d double\n", indx * m * n);
+
+	info[0] = m * n;
+	info[1] = m;
+	info[2] = n;
+
 	for (int i = 0; i < Total_pannels_axially; i++) {
 		for (int j = 0; j < p.ny; j++) {
 			for (int p = 0; p < m; p++) {
@@ -1132,7 +1157,7 @@ int smc_mesh_ver2(parms p, double**** storage, double*** buffer, int Total_panne
 					fprintf(fw, "%2.8lf %2.8lf %2.8lf\n", mesh[i][j + j_offset].x[p][q], mesh[i][j + j_offset].y[p][q],
 							mesh[i][j + j_offset].z[p][q]);
 					fprintf(f_points, "%2.8lf %2.8lf %2.8lf\n", mesh[i][j + j_offset].x[p][q], mesh[i][j + j_offset].y[p][q],
-												mesh[i][j + j_offset].z[p][q]);
+							mesh[i][j + j_offset].z[p][q]);
 
 				}
 			}
@@ -1140,6 +1165,11 @@ int smc_mesh_ver2(parms p, double**** storage, double*** buffer, int Total_panne
 	}
 	int cell_offset = 0;
 	int num_cells = Total_pannels_axially * Total_pannels_circumferentially * (m - 1) * (n - 1);
+
+	info[3] = (m - 1) * (n - 1);
+	info[4] = m - 1;
+	info[5] = n - 1;
+
 	int row_offset = n;
 	fprintf(fw, "CELLS %d %d\n", num_cells, num_cells * 5);
 	for (int i = 0; i < Total_pannels_axially; i++) {
@@ -1169,11 +1199,11 @@ int smc_mesh_ver2(parms p, double**** storage, double*** buffer, int Total_panne
 	fclose(fw);
 	fclose(f_points);
 	fclose(f_cells);
-	return (indx);
+	return (info);
 }
-int ec_mesh_ver2(parms p, double**** storage, double*** buffer, int Total_pannels_axially, int Total_pannels_circumferentially, int downstream_offset,
-		int upstream_offset, char* prefix) {
-
+int* ec_mesh_ver2(parms p, double**** storage, double*** buffer, int Total_pannels_axially, int Total_pannels_circumferentially,
+		int downstream_offset, int upstream_offset, char* prefix) {
+	int* info = (int*) malloc(7 * sizeof(int));
 	mesh_store **mesh = (mesh_store**) malloc(Total_pannels_axially * sizeof(mesh_store*));
 	for (int i = 0; i < Total_pannels_axially; i++) {
 		mesh[i] = (mesh_store*) malloc(Total_pannels_circumferentially * sizeof(mesh_store));
@@ -1290,6 +1320,11 @@ int ec_mesh_ver2(parms p, double**** storage, double*** buffer, int Total_pannel
 	fprintf(fw, "ASCII\n");
 	fprintf(fw, "DATASET UNSTRUCTURED_GRID\n");
 	fprintf(fw, "POINTS %d double\n", indx * m * n);
+
+	info[0] = m * n;
+	info[1] = m;
+	info[2] = n;
+
 	for (int i = 0; i < Total_pannels_axially; i++) {
 		for (int j = 0; j < p.ny; j++) {
 			for (int p = 0; p < m; p++) {
@@ -1312,6 +1347,9 @@ int ec_mesh_ver2(parms p, double**** storage, double*** buffer, int Total_pannel
 	}
 	int cell_offset = 0;
 	int num_cells = Total_pannels_axially * Total_pannels_circumferentially * (m - 1) * (n - 1);
+	info[3] = (m - 1) * (n - 1);
+	info[4] = m - 1;
+	info[5] = n - 1;
 	int row_offset = n;
 	fprintf(fw, "CELLS %d %d\n", num_cells, num_cells * 5);
 	for (int i = 0; i < Total_pannels_axially; i++) {
@@ -1361,6 +1399,9 @@ int ec_mesh_ver2(parms p, double**** storage, double*** buffer, int Total_pannel
 	fprintf(fw, "ASCII\n");
 	fprintf(fw, "DATASET UNSTRUCTURED_GRID\n");
 	fprintf(fw, "POINTS %d double\n", num_cells);
+
+	info[6] = num_cells/(Total_pannels_axially * Total_pannels_circumferentially);
+
 	for (int i = 0; i < Total_pannels_axially; i++) {
 		for (int j = 0; j < Total_pannels_circumferentially; j++) {
 			for (int p = 0; p < m - 1; p++) {
@@ -1398,7 +1439,7 @@ int ec_mesh_ver2(parms p, double**** storage, double*** buffer, int Total_pannel
 	fclose(f_points);
 	fclose(f_cells);
 
-	return (indx);
+	return (info);
 }
 
 void bound_v_correction(parms p, double**** storage, int downstream_offset, int upstream_offset) {

@@ -492,5 +492,22 @@ int main(int argc, char* argv[]) {
 	upstream_offset = 0;
 	format_primitive(p, storage, "endcap_right_daughter", downstream_offset, upstream_offset);
 
+	FILE *fw;
+	char filename[50];
+	sprintf(filename, "configuration_info.txt");
+	fw = fopen(filename, "w+");
+
+	fprintf(fw, "Processors information\n");
+	fprintf(fw, "Total number of points per branch (vtk points)= %d\t m = %d n= %d\n", info[0], info[1], info[2]);
+	fprintf(fw, "Total number of cells per branch (vtk cells)= %d\t m = %d n= %d\n", info[3], info[4], info[5]);
+
+	fprintf(fw, "Total number of SMC mesh points per processor mesh (vtk points)= %d\t m = %d n= %d\n", info[6], info[7], info[8]);
+	fprintf(fw, "Total number of SMC mesh cells per processor mesh (vtk points)= %d\t m = %d n= %d\n", info[9], info[10], info[11]);
+
+	fprintf(fw, "Total number of EC mesh points per processor mesh (vtk points)= %d\t m = %d n= %d\n", info[12], info[13], info[14]);
+	fprintf(fw, "Total number of EC mesh cells per processor mesh (vtk points)= %d\t m = %d n= %d\n", info[15], info[16], info[17]);
+
+	fprintf(fw, "Total centeroid points/cells per processor mesh = %d\n",info[18]);
+	fclose(fw);
 }
 

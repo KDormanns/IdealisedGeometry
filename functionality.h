@@ -84,8 +84,8 @@ void format_vtk_unstructuredGrid(parms p, double** fx, double** fy, double** fz,
 void store_arrays(parms p,double** fx, double** fy, double** fz, double**** storage, int half);
 double**** allocate_storage_array(int nx, int ny);
 int* format_primitive(parms p, double**** storage, char *prefix,int downstream_offset, int upstream_offset);
-int smc_mesh_ver2(parms, double****, double***, int, int,int , int,char* ) ;
-int ec_mesh_ver2(parms p, double**** storage, double*** buffer, int Total_pannels_axially, int Total_pannels_circumferentially, int downstream_offset,
+int* smc_mesh_ver2(parms, double****, double***, int, int,int , int,char* ) ;
+int* ec_mesh_ver2(parms p, double**** storage, double*** buffer, int Total_pannels_axially, int Total_pannels_circumferentially, int downstream_offset,
 		int upstream_offset, char* prefix);
 
 void bound_v_correction(parms p, double**** storage, int downstream_offset, int upstream_offset);
