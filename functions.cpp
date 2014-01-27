@@ -22,9 +22,9 @@ double* allocate_neuman(int indx) {
 	return (buffer);
 }
 
-void initialize_f(parms p, double **fx, double **fy, double **fz) {
-	for (int i = 0; i < p.nx; i++) {
-		for (int j = 0; j < p.ny; j++) {
+void initialize_f(parms* p, double **fx, double **fy, double **fz) {
+	for (int i = 0; i < p->nx; i++) {
+		for (int j = 0; j < p->ny; j++) {
 			fx[i][j] = 0.0;
 			fy[i][j] = 0.0;
 			fz[i][j] = 0.0;
@@ -148,31 +148,32 @@ void facet2(int i, int j, double ***f, FILE* FileWrite) {
 	fprintf(FileWrite, "endfacet\n");
 }
 
-double** solve(parms p, double *bda, double *bdb, double *bdc, double *bdd, double **f, int idf, int iflag, double tol, int itcg, double *w, int lw) {
+double** solve(parms* p, double *bda, double *bdb, double *bdc, double *bdd, double **f, int idf, int iflag, double tol, int itcg, double *w,
+		int lw) {
 
-	double t[p.ny][p.nx];			//Transpose matrix
-	double a[p.nx * p.ny];		//a vector to pass the data to dbihar function.
-	int offset = p.nx;
-	for (int i = 0; i < p.nx; i++) {
-		for (int j = 0; j < p.ny; j++) {
+	double t[p->ny][p->nx];			//Transpose matrix
+	double a[p->nx * p->ny];		//a vector to pass the data to dbihar function.
+	int offset = p->nx;
+	for (int i = 0; i < p->nx; i++) {
+		for (int j = 0; j < p->ny; j++) {
 			t[j][i] = f[i][j];
 		}
 	}
-	for (int i = 0; i < p.ny; i++) {
-		for (int j = 0; j < p.nx; j++) {
+	for (int i = 0; i < p->ny; i++) {
+		for (int j = 0; j < p->nx; j++) {
 			a[i * offset + j] = t[i][j];
 		}
 	}
 
-	dbihar(&p.a, &p.b, &p.m, bda, bdb, bdc, bdd, &p.c, &p.d, &p.n, a, &idf, &p.alpha, &p.beta, &iflag, &tol, &itcg, w, &lw);
+	dbihar(&p->a, &p->b, &p->m, bda, bdb, bdc, bdd, &p->c, &p->d, &p->n, a, &idf, &p->alpha, &p->beta, &iflag, &tol, &itcg, w, &lw);
 
-	for (int i = 0; i < p.ny; i++) {
-		for (int j = 0; j < p.nx; j++) {
+	for (int i = 0; i < p->ny; i++) {
+		for (int j = 0; j < p->nx; j++) {
 			t[i][j] = a[i * offset + j];
 		}
 	}
-	for (int i = 0; i < p.nx; i++) {
-		for (int j = 0; j < p.ny; j++) {
+	for (int i = 0; i < p->nx; i++) {
+		for (int j = 0; j < p->ny; j++) {
 			f[i][j] = t[j][i];
 		}
 	}
@@ -182,17 +183,18 @@ double** solve(parms p, double *bda, double *bdb, double *bdc, double *bdd, doub
 void dirichlet_boundary_parent_segment(parms p, double **fx, double **fy, double **fz) {
 	for (int i = 1; i <= p.nx; i++) {
 		double x = p.a + (i - 1) * (p.b - p.a) / (p.m + 1);
+		double r = p.neck - (p.neck - p.rb) * (x);
 		int j;
 		///v=c
 		j = 1;
-		fx[i - 1][j - 1] = -p.rb * cos(p.c);
+		fx[i - 1][j - 1] = -r * cos(p.c);
 		fy[i - 1][j - 1] = p.h2 - (p.h2 - p.h1) * x;
-		fz[i - 1][j - 1] = p.rb * sin(p.c);
+		fz[i - 1][j - 1] = r * sin(p.c);
 		///v=d
 		j = p.ny;
-		fx[i - 1][j - 1] = -p.rb * cos(p.d);
+		fx[i - 1][j - 1] = -r * cos(p.d);
 		fy[i - 1][j - 1] = p.h2 - (p.h2 - p.h1) * x;
-		fz[i - 1][j - 1] = p.rb * sin(p.d);
+		fz[i - 1][j - 1] = r * sin(p.d);
 	}
 
 	for (int j = 1; j <= p.ny; j++) {
@@ -200,9 +202,9 @@ void dirichlet_boundary_parent_segment(parms p, double **fx, double **fy, double
 		int i;
 		///x=a
 		i = 1;
-		fx[i - 1][j - 1] = -p.rb * cos(y);
+		fx[i - 1][j - 1] = -p.neck * cos(y);
 		fy[i - 1][j - 1] = p.h2;
-		fz[i - 1][j - 1] = p.rb * sin(y);
+		fz[i - 1][j - 1] = p.neck * sin(y);
 		///x=b
 		i = p.nx;
 		fx[i - 1][j - 1] = -p.rb * cos(y);
@@ -210,25 +212,27 @@ void dirichlet_boundary_parent_segment(parms p, double **fx, double **fy, double
 		fz[i - 1][j - 1] = p.rb * sin(y);
 	}
 }
-void dirichlet_boundary_outer_wall(parms p, double **fx, double **fy, double **fz) {
+double* dirichlet_boundary_outer_wall(parms p, double **fx, double **fy, double **fz) {
 	for (int i = 1; i <= p.nx; i++) {
 		double x = p.a + (i - 1) * (p.b - p.a) / (p.m + 1);
 		int j;
 		double h = p.h3 - (p.h3 - p.h2) * x;
+		double r = p.neck - (p.neck - p.rt) * (1 - x);
 		///v=c
 		j = 1;
-		fx[i - 1][j - 1] = -(h * cos(p.alfa / 2) + p.ra * sin(p.alfa / 2) * cos(p.c));
-		fy[i - 1][j - 1] = h * sin(p.alfa / 2) - p.ra * cos(p.alfa / 2) * cos(p.c);
-		fz[i - 1][j - 1] = p.ra * sin(p.c);
+		fx[i - 1][j - 1] = -(h * cos(p.alfa / 2) + /*p.ra*/r * sin(p.alfa / 2) * cos(p.c));
+		fy[i - 1][j - 1] = h * sin(p.alfa / 2) - /*p.ra*/r * cos(p.alfa / 2) * cos(p.c);
+		fz[i - 1][j - 1] = /*p.ra*/r * sin(p.c);
 		///v=d
 		j = p.ny;
-		fx[i - 1][j - 1] = -(h * cos(p.alfa / 2) + p.ra * sin(p.alfa / 2) * cos(p.d));
-		fy[i - 1][j - 1] = h * sin(p.alfa / 2) - p.ra * cos(p.alfa / 2) * cos(p.d);
-		fz[i - 1][j - 1] = p.ra * sin(p.d);
+		fx[i - 1][j - 1] = -(h * cos(p.alfa / 2) + /*p.ra*/r * sin(p.alfa / 2) * cos(p.d));
+		fy[i - 1][j - 1] = h * sin(p.alfa / 2) - /*p.ra*/r * cos(p.alfa / 2) * cos(p.d);
+		fz[i - 1][j - 1] = /*p.ra*/r * sin(p.d);
 	}
-
+	double* theta_val = (double*) malloc(p.ny * sizeof(double));
 	for (int j = 1; j <= p.ny; j++) {
 		double y = p.c + (j - 1) * (p.d - p.c) / (p.n + 1);
+		theta_val[j - 1] = y;
 		int i;
 		///x=a
 		i = 1;
@@ -238,33 +242,35 @@ void dirichlet_boundary_outer_wall(parms p, double **fx, double **fy, double **f
 
 		///x=b
 		i = p.nx;
-		fx[i - 1][j - 1] = -p.rb * cos(y);
+		fx[i - 1][j - 1] = -p.neck * cos(y);
 		fy[i - 1][j - 1] = p.h2;
-		fz[i - 1][j - 1] = p.rb * sin(y);
+		fz[i - 1][j - 1] = p.neck * sin(y);
 	}
+	return (theta_val);
 }
 
-void dirichlet_boundary_inner_wall(parms p, double **fx, double **fy, double **fz) {
+double* dirichlet_boundary_inner_wall(parms p, double **fx, double **fy, double **fz) {
 	for (int i = 1; i <= p.nx; i++) {
 		double x = p.a + (i - 1) * (p.b - p.a) / (p.m + 1);
 		int j;
 		///v=c
 		double h = p.h3 - (p.h3 - p.h2) * x;
+		double r = p.neck - (p.neck - p.rt) * (1 - x);
 		j = 1;
-		fx[i - 1][j - 1] = -(h * cos(p.alfa / 2) + p.ra * sin(p.alfa / 2) * cos(p.c));
-		fy[i - 1][j - 1] = h * sin(p.alfa / 2) - p.ra * cos(p.alfa / 2) * cos(p.c);
-		fz[i - 1][j - 1] = p.ra * sin(p.c);
+		fx[i - 1][j - 1] = -(h * cos(p.alfa / 2) + /*p.ra*/r * sin(p.alfa / 2) * cos(p.c));
+		fy[i - 1][j - 1] = h * sin(p.alfa / 2) - /*p.ra*/r * cos(p.alfa / 2) * cos(p.c);
+		fz[i - 1][j - 1] = /*p.ra*/r * sin(p.c);
 		///v=d
 		j = p.ny;
-		fx[i - 1][j - 1] = -(h * cos(p.alfa / 2) + p.ra * sin(p.alfa / 2) * cos(p.d));
-		fy[i - 1][j - 1] = h * sin(p.alfa / 2) - p.ra * cos(p.alfa / 2) * cos(p.d);
-		fz[i - 1][j - 1] = p.ra * sin(p.d);
+		fx[i - 1][j - 1] = -(h * cos(p.alfa / 2) + /*p.ra*/r * sin(p.alfa / 2) * cos(p.d));
+		fy[i - 1][j - 1] = h * sin(p.alfa / 2) - /*p.ra*/r * cos(p.alfa / 2) * cos(p.d);
+		fz[i - 1][j - 1] = /*p.ra*/r * sin(p.d);
 	}
-
+	double* theta_val = (double*) malloc(p.ny * sizeof(double));
 	for (int j = 1; j <= p.ny; j++) {
 		double y = p.c + (j - 1) * (p.d - p.c) / (p.n + 1);
 		double direction = 0.0;
-
+		theta_val[j - 1] = y;
 		int i;
 		///x=a
 		i = 1;
@@ -276,20 +282,23 @@ void dirichlet_boundary_inner_wall(parms p, double **fx, double **fy, double **f
 
 		fx[i - 1][j - 1] = 0.0;
 		if ((y >= pi / 2) && (y <= 3 * pi / 2)) {
-			fy[i - 1][j - 1] = -p.rb * cos(y);
+			fy[i - 1][j - 1] = -p.apex * cos(y);
 		} else if ((y >= 3 * pi / 2) && (y <= 2 * pi + pi / 2)) {
-			fy[i - 1][j - 1] = p.rb * cos(y);
+			fy[i - 1][j - 1] = p.apex * cos(y);
 		}
 
-		fz[i - 1][j - 1] = p.rb * sin(y);
+		fz[i - 1][j - 1] = p.neck * sin(y);
 	}
+	return (theta_val);
 }
 
 void dirichlet_boundary_end_cap_parent(parms p, double **fx, double **fy, double **fz) {
 
 	double x, y;
+	double* theta_val = (double*) malloc(p.ny * sizeof(double));
 	for (int j = 1; j <= p.ny; j++) {
 		y = p.c + (j - 1) * (p.d - p.c) / (p.n + 1);
+		theta_val[j - 1] = y;
 		for (int i = 1; i <= p.nx; i++) {
 			x = p.a + (i - 1) * (p.b - p.a) / (p.m + 1);
 			fx[i - 1][j - 1] = p.rb * (1 - x) * cos(y);
@@ -302,8 +311,10 @@ void dirichlet_boundary_end_cap_parent(parms p, double **fx, double **fy, double
 void dirichlet_boundary_end_cap_daughter(parms p, double **fx, double **fy, double **fz) {
 
 	double x, y;
+	double* theta_val = (double*) malloc(p.ny * sizeof(double));
 	for (int j = 1; j <= p.ny; j++) {
 		y = p.c + (j - 1) * (p.d - p.c) / (p.n + 1);
+		theta_val[j - 1] = y;
 		for (int i = 1; i <= p.nx; i++) {
 			x = p.a + (i - 1) * (p.b - p.a) / (p.m + 1);
 			fx[i - 1][j - 1] = -(p.h3 * cos(p.alfa / 2) + p.rt * (1 - x) * sin(p.alfa / 2) * cos(y));
@@ -731,8 +742,6 @@ int format_vtk_small_mesh(char *tmp_file, char *master_file, char *centeroids, c
 		}
 	}
 
-	printf("Step 2\n");
-
 	printf("total_points=%d\n", total_points);
 	fprintf(fw, "CELL_TYPES %d\n", count);
 	for (int i = 0; i < count; i++) {
@@ -818,19 +827,6 @@ void record_data(int k, parms p, double **fx, double **fy, double **fz, double *
 	}
 }
 
-double interpolate(double x, double x0, double x1, double y0, double y1) {
-	double y;
-	y = y0 + (y1 - y0) * (x - x0) / (x1 - x0);
-	return (y);
-}
-
-void boundary_correction(parms p, double ****f) {
-	for (int i = 0; i < p.nx; i++) {
-		f[0][1][i][0] = interpolate(f[0][0][i][0], f[0][0][i][1], f[1][0][i][p.ny - 2], f[0][1][i][1], f[1][1][i][p.ny - 2]);
-		f[1][1][i][p.ny - 1] = interpolate(f[1][0][i][0], f[0][0][i][1], f[1][0][i][p.ny - 2], f[0][1][i][1], f[1][1][i][p.ny - 2]);
-	}
-}
-
 void format_vtk_unstructuredGrid(parms p, double** fx, double** fy, double** fz, char* prefix, int downstream_offset, int upstream_offset) {
 
 	FILE *f;
@@ -903,9 +899,9 @@ double**** allocate_storage_array(int nx, int ny) {
 	return (storage);
 }
 
-void store_arrays(parms p, double** fx, double** fy, double** fz, double**** storage, int half) {
-	for (int i = 0; i < p.nx; i++) {
-		for (int j = 0; j < p.ny; j++) {
+void store_arrays(parms* p, double** fx, double** fy, double** fz, double**** storage, int half) {
+	for (int i = 0; i < p->nx; i++) {
+		for (int j = 0; j < p->ny; j++) {
 			storage[half][0][i][j] = fx[i][j];
 			storage[half][1][i][j] = fy[i][j];
 			storage[half][2][i][j] = fz[i][j];
@@ -916,6 +912,30 @@ void store_arrays(parms p, double** fx, double** fy, double** fz, double**** sto
 int* format_primitive(parms p, double**** storage, char *prefix, int downstream_offset, int upstream_offset)
 /*************************************************************************************************************/
 {
+	int j_offset = p.ny - 1;
+	double ***stl_buffer = (double***) malloc(3 * sizeof(double**));
+	for (int i = 0; i < 3; i++) {
+		stl_buffer[i] = (double**) malloc(p.nx * sizeof(double*));
+	}
+	for (int i = 0; i < 3; i++) {
+		for (int j = 0; j < p.nx; j++) {
+			stl_buffer[i][j] = (double*) malloc(2*p.ny * sizeof(double));
+		}
+	}
+	for (int i = 0; i < p.nx; i++) {
+		for (int j = 0; j < p.ny - 1; j++) {
+			stl_buffer[x_coord][i][j] = storage[RIGHT][x_coord][i][j] * 1e-3;
+			stl_buffer[y_coord][i][j] = storage[RIGHT][y_coord][i][j] * 1e-3;
+			stl_buffer[z_coord][i][j] = storage[RIGHT][z_coord][i][j] * 1e-3;
+		}
+		for (int j = 0; j < p.ny; j++) {
+			stl_buffer[x_coord][i][j + j_offset] = storage[LEFT][x_coord][i][j] * 1e-3;
+			stl_buffer[y_coord][i][j + j_offset] = storage[LEFT][y_coord][i][j] * 1e-3;
+			stl_buffer[z_coord][i][j + j_offset] = storage[LEFT][z_coord][i][j] * 1e-3;
+		}
+	}
+	format_stl(p, stl_buffer, prefix, p.nx - 1, 2 * (p.ny - 1));
+
 
 	FILE *f, *f_tmp, *f_points, *f_cells;
 	char filename[50], txtfile[50];
@@ -934,13 +954,13 @@ int* format_primitive(parms p, double**** storage, char *prefix, int downstream_
 
 	fprintf(f, "DATASET UNSTRUCTURED_GRID\n");
 
-	int TotalNumberOfPoints = (((p.nx - upstream_offset) - downstream_offset) * 2 * p.ny);
+	int TotalNumberOfPoints = (((p.nx - upstream_offset) - downstream_offset) * (2 * p.ny - 1));
 	info[0] = TotalNumberOfPoints;
 	info[1] = ((p.nx - upstream_offset) - downstream_offset);
-	info[2] = 2 * p.ny;
+	info[2] = 2 * p.ny - 1;
 
 	int Total_pannels_axially = (((p.nx - upstream_offset) - downstream_offset) - 1);
-	int Total_pannels_circumferentially = (2 * p.ny - 1);
+	int Total_pannels_circumferentially = 2 * (p.ny - 1);
 	int TotalNumberOfCells = Total_pannels_axially * Total_pannels_circumferentially;
 	info[3] = TotalNumberOfCells;
 	info[4] = Total_pannels_axially;
@@ -951,13 +971,14 @@ int* format_primitive(parms p, double**** storage, char *prefix, int downstream_
 	}
 	for (int i = 0; i < 3; i++) {
 		for (int j = 0; j < ((p.nx - upstream_offset) - downstream_offset); j++) {
-			buffer[i][j] = (double*) malloc(2 * p.ny * sizeof(double));
+			buffer[i][j] = (double*) malloc((2 * p.ny) * sizeof(double));
 		}
 	}
-	int j_offset = p.ny;
+
+	j_offset = p.ny - 1;
 	fprintf(f, "POINTS %d double\n", TotalNumberOfPoints);
 	for (int i = 0 + downstream_offset; i < (p.nx - upstream_offset); i++) {
-		for (int j = 0; j < p.ny; j++) {
+		for (int j = 0; j < p.ny - 1; j++) {
 			fprintf(f, "%2.12lf %2.12lf %2.12lf\n", storage[RIGHT][x_coord][i][j] * 1e-3, storage[RIGHT][y_coord][i][j] * 1e-3,
 					storage[RIGHT][z_coord][i][j] * 1e-3);
 			fprintf(f_points, "%2.12lf %2.12lf %2.12lf\n", storage[RIGHT][x_coord][i][j] * 1e-3, storage[RIGHT][y_coord][i][j] * 1e-3,
@@ -979,7 +1000,7 @@ int* format_primitive(parms p, double**** storage, char *prefix, int downstream_
 	}
 
 	fprintf(f, "CELLS %d %d\n", TotalNumberOfCells, 5 * TotalNumberOfCells);
-	int row_offset = 2 * p.ny;
+	int row_offset = 2 * p.ny - 1;
 	for (int i = 0 + downstream_offset; i < (p.nx - 1 - upstream_offset); i++) {
 		for (int j = 0; j < row_offset - 1; j++) {
 			fprintf(f, "%d %d %d %d %d\n", 4, ((i - downstream_offset) * row_offset) + j, (((i - downstream_offset) + 1) * row_offset) + j,
@@ -995,26 +1016,25 @@ int* format_primitive(parms p, double**** storage, char *prefix, int downstream_
 		}
 	}
 
-	format_stl(p, buffer, prefix, Total_pannels_axially, Total_pannels_circumferentially);
-	int* info_smc = (int*) malloc(6*sizeof(int));
+	int* info_smc = (int*) malloc(6 * sizeof(int));
 	info_smc = smc_mesh_ver2(p, storage, buffer, Total_pannels_axially, Total_pannels_circumferentially, downstream_offset, upstream_offset, prefix);
-	int* info_ec = (int*) malloc(7*sizeof(int));
+	int* info_ec = (int*) malloc(7 * sizeof(int));
 	info_ec = ec_mesh_ver2(p, storage, buffer, Total_pannels_axially, Total_pannels_circumferentially, downstream_offset, upstream_offset, prefix);
 
 	info[6] = info_smc[0];
 	info[7] = info_smc[1];
 	info[8] = info_smc[2];
 	info[9] = info_smc[3];
-	info[10]= info_smc[4];
-	info[11]= info_smc[5];
+	info[10] = info_smc[4];
+	info[11] = info_smc[5];
 
-	info[12]= info_ec[0];
-	info[13]= info_ec[1];
-	info[14]= info_ec[2];
-	info[15]= info_ec[3];
-	info[16]= info_ec[4];
-	info[17]= info_ec[5];
-	info[18]= info_ec[6];
+	info[12] = info_ec[0];
+	info[13] = info_ec[1];
+	info[14] = info_ec[2];
+	info[15] = info_ec[3];
+	info[16] = info_ec[4];
+	info[17] = info_ec[5];
+	info[18] = info_ec[6];
 	fclose(f);
 	fclose(f_points);
 	fclose(f_cells);
@@ -1029,7 +1049,7 @@ int* smc_mesh_ver2(parms p, double**** storage, double*** buffer, int Total_pann
 	for (int i = 0; i < Total_pannels_axially; i++) {
 		mesh[i] = (mesh_store*) malloc(Total_pannels_circumferentially * sizeof(mesh_store));
 	}
-	int m, n, num_ec_axially = 4, num_smc_circumferentially = 3;
+	int m, n, num_ec_axially = p.ECs, num_smc_circumferentially = p.SMCs;
 	/// Meshing SMCs pannels
 	m = (num_ec_axially * 13) + 1;
 	n = num_smc_circumferentially + 1;
@@ -1042,10 +1062,10 @@ int* smc_mesh_ver2(parms p, double**** storage, double*** buffer, int Total_pann
 		}
 
 	}
-	int j_offset = p.ny;
+	int j_offset = p.ny - 1;
 	int indx = 0;
 	for (int i = 0; i < Total_pannels_axially; i++) {
-		for (int j = 0; j < p.ny; j++) {
+		for (int j = 0; j < p.ny - 1; j++) {
 			double ax = buffer[x_coord][i][j], bx = buffer[x_coord][i + 1][j], cx = buffer[x_coord][i][j + 1], dx = buffer[x_coord][i + 1][j + 1],
 					ay = buffer[y_coord][i][j], by = buffer[y_coord][i + 1][j], cy = buffer[y_coord][i][j + 1], dy = buffer[y_coord][i + 1][j + 1],
 					az = buffer[z_coord][i][j], bz = buffer[z_coord][i + 1][j], cz = buffer[z_coord][i][j + 1], dz = buffer[z_coord][i + 1][j + 1];
@@ -1143,7 +1163,7 @@ int* smc_mesh_ver2(parms p, double**** storage, double*** buffer, int Total_pann
 	info[2] = n;
 
 	for (int i = 0; i < Total_pannels_axially; i++) {
-		for (int j = 0; j < p.ny; j++) {
+		for (int j = 0; j < p.ny - 1; j++) {
 			for (int p = 0; p < m; p++) {
 				for (int q = 0; q < n; q++) {
 					fprintf(fw, "%2.8lf %2.8lf %2.8lf\n", mesh[i][j].x[p][q], mesh[i][j].y[p][q], mesh[i][j].z[p][q]);
@@ -1178,14 +1198,13 @@ int* smc_mesh_ver2(parms p, double**** storage, double*** buffer, int Total_pann
 				for (int q = 0; q < n - 1; q++) {
 					fprintf(fw, "%d %d %d %d %d\n", 4, cell_offset + p * row_offset + q, cell_offset + p * row_offset + (q + 1),
 							cell_offset + (p + 1) * row_offset + (q + 1), cell_offset + (p + 1) * row_offset + q);
-					fprintf(f_cells, "%d %d %d %d\n", cell_offset + p * row_offset + q, cell_offset + p * row_offset + (q + 1),
+					fprintf(f_cells, "%d %d %d %d %d\n", 4, cell_offset + p * row_offset + q, cell_offset + p * row_offset + (q + 1),
 							cell_offset + (p + 1) * row_offset + (q + 1), cell_offset + (p + 1) * row_offset + q);
 				}
 			}
 			cell_offset += m * n;
 		}
 	}
-	printf("step2\n");
 	fprintf(fw, "CELL_TYPES %d\n", num_cells);
 	for (int i = 0; i < Total_pannels_axially; i++) {
 		for (int j = 0; j < Total_pannels_circumferentially; j++) {
@@ -1208,7 +1227,7 @@ int* ec_mesh_ver2(parms p, double**** storage, double*** buffer, int Total_panne
 	for (int i = 0; i < Total_pannels_axially; i++) {
 		mesh[i] = (mesh_store*) malloc(Total_pannels_circumferentially * sizeof(mesh_store));
 	}
-	int m, n, num_ec_axially = 4, num_smc_circumferentially = 3;
+	int m, n, num_ec_axially = p.ECs, num_smc_circumferentially = p.SMCs;
 	/// Meshing SMCs pannels
 	m = num_ec_axially + 1;
 	n = num_smc_circumferentially * 5 + 1;
@@ -1225,10 +1244,10 @@ int* ec_mesh_ver2(parms p, double**** storage, double*** buffer, int Total_panne
 		}
 
 	}
-	int j_offset = p.ny;
+	int j_offset = p.ny - 1;
 	int indx = 0;
 	for (int i = 0; i < Total_pannels_axially; i++) {
-		for (int j = 0; j < p.ny; j++) {
+		for (int j = 0; j < p.ny - 1; j++) {
 			double ax = buffer[x_coord][i][j], bx = buffer[x_coord][i + 1][j], cx = buffer[x_coord][i][j + 1], dx = buffer[x_coord][i + 1][j + 1],
 					ay = buffer[y_coord][i][j], by = buffer[y_coord][i + 1][j], cy = buffer[y_coord][i][j + 1], dy = buffer[y_coord][i + 1][j + 1],
 					az = buffer[z_coord][i][j], bz = buffer[z_coord][i + 1][j], cz = buffer[z_coord][i][j + 1], dz = buffer[z_coord][i + 1][j + 1];
@@ -1326,7 +1345,7 @@ int* ec_mesh_ver2(parms p, double**** storage, double*** buffer, int Total_panne
 	info[2] = n;
 
 	for (int i = 0; i < Total_pannels_axially; i++) {
-		for (int j = 0; j < p.ny; j++) {
+		for (int j = 0; j < p.ny - 1; j++) {
 			for (int p = 0; p < m; p++) {
 				for (int q = 0; q < n; q++) {
 					fprintf(fw, "%2.8lf %2.8lf %2.8lf\n", mesh[i][j].x[p][q], mesh[i][j].y[p][q], mesh[i][j].z[p][q]);
@@ -1358,7 +1377,7 @@ int* ec_mesh_ver2(parms p, double**** storage, double*** buffer, int Total_panne
 				for (int q = 0; q < n - 1; q++) {
 					fprintf(fw, "%d %d %d %d %d\n", 4, cell_offset + p * row_offset + q, cell_offset + p * row_offset + (q + 1),
 							cell_offset + (p + 1) * row_offset + (q + 1), cell_offset + (p + 1) * row_offset + q);
-					fprintf(f_cells, "%d %d %d %d\n", cell_offset + p * row_offset + q, cell_offset + p * row_offset + (q + 1),
+					fprintf(f_cells, "%d %d %d %d %d\n", 4, cell_offset + p * row_offset + q, cell_offset + p * row_offset + (q + 1),
 							cell_offset + (p + 1) * row_offset + (q + 1), cell_offset + (p + 1) * row_offset + q);
 					mesh[i][j].cx[p][q] = (mesh[i][j].x[p][q] + mesh[i][j].x[p][q + 1] /*+ mesh[i][j].x[(p + 1)][q + 1], mesh[i][j].x[(p + 1)][q]*/)
 							/ 2;
@@ -1370,7 +1389,6 @@ int* ec_mesh_ver2(parms p, double**** storage, double*** buffer, int Total_panne
 			cell_offset += m * n;
 		}
 	}
-	printf("step2\n");
 	fprintf(fw, "CELL_TYPES %d\n", num_cells);
 	for (int i = 0; i < Total_pannels_axially; i++) {
 		for (int j = 0; j < Total_pannels_circumferentially; j++) {
@@ -1400,7 +1418,7 @@ int* ec_mesh_ver2(parms p, double**** storage, double*** buffer, int Total_panne
 	fprintf(fw, "DATASET UNSTRUCTURED_GRID\n");
 	fprintf(fw, "POINTS %d double\n", num_cells);
 
-	info[6] = num_cells/(Total_pannels_axially * Total_pannels_circumferentially);
+	info[6] = num_cells / (Total_pannels_axially * Total_pannels_circumferentially);
 
 	for (int i = 0; i < Total_pannels_axially; i++) {
 		for (int j = 0; j < Total_pannels_circumferentially; j++) {
@@ -1419,7 +1437,7 @@ int* ec_mesh_ver2(parms p, double**** storage, double*** buffer, int Total_panne
 			for (int p = 0; p < m - 1; p++) {
 				for (int q = 0; q < n - 1; q++) {
 					fprintf(fw, "%d %d\n", 1, count);
-					fprintf(f_cells, "%d\n", count);
+					fprintf(f_cells, "%d %d\n", 1, count);
 					count++;
 				}
 			}
@@ -1442,21 +1460,636 @@ int* ec_mesh_ver2(parms p, double**** storage, double*** buffer, int Total_panne
 	return (info);
 }
 
-void bound_v_correction(parms p, double**** storage, int downstream_offset, int upstream_offset) {
+/***********************************************************************/
 
-	for (int i = 0 + downstream_offset; i < (p.nx - upstream_offset) - 1; i++) {
-		storage[RIGHT][x_coord][i][p.ny - 1] = (storage[RIGHT][x_coord][i][p.ny - 1 - 1] + storage[LEFT][x_coord][i][1]) / 2;
-		storage[RIGHT][y_coord][i][p.ny - 1] = (storage[RIGHT][y_coord][i][p.ny - 1 - 1] + storage[LEFT][y_coord][i][1]) / 2;
-		//storage[RIGHT][z_coord][i][p.ny - 1] = (storage[RIGHT][z_coord][i][p.ny - 1 - 1] + storage[LEFT][z_coord][i][1]) / 2;
-		storage[LEFT][x_coord][i][0] = (storage[RIGHT][x_coord][i][p.ny - 1 - 1] + storage[LEFT][x_coord][i][1]) / 2;
-		storage[LEFT][y_coord][i][0] = (storage[RIGHT][y_coord][i][p.ny - 1 - 1] + storage[LEFT][y_coord][i][1]) / 2;
-		//storage[LEFT][z_coord][i][0] 		 = (storage[RIGHT][z_coord][i][p.ny - 1 - 1] + storage[LEFT][z_coord][i][1]) / 2;
+double* dirichlet_boundary_outer_wall_corrected_v_boundary(parms* p, double**** storage, double **fx, double **fy, double **fz, int half) {
+	for (int i = 1; i <= p->nx; i++) {
+		double x = p->a + (i - 1) * (p->b - p->a) / (p->m + 1);
+		int j;
+		double h = p->h3 - (p->h3 - p->h2) * x;
+		double r = p->neck - (p->neck - p->rt) * (1 - x);
+		///v=c
+		j = 1;
+		fx[i - 1][j - 1] = storage[half][x_coord][i - 1][j - 1];
+		fy[i - 1][j - 1] = storage[half][y_coord][i - 1][j - 1];
+		fz[i - 1][j - 1] = storage[half][z_coord][i - 1][j - 1];
+		///v=d
+		j = p->ny;
+		fx[i - 1][j - 1] = storage[half][x_coord][i - 1][j - 1];
+		fy[i - 1][j - 1] = storage[half][y_coord][i - 1][j - 1];
+		fz[i - 1][j - 1] = storage[half][z_coord][i - 1][j - 1];
+	}
 
-		storage[LEFT][x_coord][i][p.ny - 1] = (storage[LEFT][x_coord][i][p.ny - 1 - 1] + storage[RIGHT][x_coord][i][1]) / 2;
-		storage[LEFT][y_coord][i][p.ny - 1] = (storage[LEFT][y_coord][i][p.ny - 1 - 1] + storage[RIGHT][y_coord][i][1]) / 2;
-		//storage[LEFT][z_coord][i][p.ny - 1] = (storage[LEFT][z_coord][i][p.ny - 1 - 1] + storage[RIGHT][z_coord][i][1]) / 2;
-		storage[RIGHT][x_coord][i][0] = (storage[LEFT][x_coord][i][p.ny - 1 - 1] + storage[RIGHT][x_coord][i][1]) / 2;
-		storage[RIGHT][y_coord][i][0] = (storage[LEFT][y_coord][i][p.ny - 1 - 1] + storage[RIGHT][y_coord][i][1]) / 2;
-		//storage[RIGHT][z_coord][i][0] 		 = (storage[LEFT][z_coord][i][p.ny - 1 - 1] + storage[RIGHT][z_coord][i][1]) / 2;
+	double* theta_val = (double*) malloc(p->ny * sizeof(double));
+	for (int j = 1; j <= p->ny; j++) {
+		double y = p->c + (j - 1) * (p->d - p->c) / (p->n + 1);
+		double direction = 0.0;
+		theta_val[j - 1] = y;
+		int i;
+		///x=a
+		i = 1;
+		fx[i - 1][j - 1] = -(p->h3 * cos(p->alfa / 2) + p->ra * sin(p->alfa / 2) * cos(y));
+		fy[i - 1][j - 1] = p->h3 * sin(p->alfa / 2) - p->ra * cos(p->alfa / 2) * cos(y);
+		fz[i - 1][j - 1] = p->ra * sin(y);
+
+		///x=b
+		i = p->nx;
+		fx[i - 1][j - 1] = -p->neck * cos(y);
+		fy[i - 1][j - 1] = p->h2;
+		fz[i - 1][j - 1] = p->neck * sin(y);
+	}
+	return (theta_val);
+}
+
+double* dirichlet_boundary_inner_wall_corrected_v_boundary(parms* p, double**** storage, double **fx, double **fy, double **fz, int half) {
+	for (int i = 1; i <= p->nx; i++) {
+		double x = p->a + (i - 1) * (p->b - p->a) / (p->m + 1);
+		int j;
+		///v=c
+		double h = p->h3 - (p->h3 - p->h2) * x;
+		double r = p->neck - (p->neck - p->rt) * (1 - x);
+		j = 1;
+		fx[i - 1][j - 1] = storage[half][x_coord][i - 1][j - 1];
+		fy[i - 1][j - 1] = storage[half][y_coord][i - 1][j - 1];
+		fz[i - 1][j - 1] = storage[half][z_coord][i - 1][j - 1];
+
+		///v=d
+		j = p->ny;
+		fx[i - 1][j - 1] = storage[half][x_coord][i - 1][j - 1];
+		fy[i - 1][j - 1] = storage[half][y_coord][i - 1][j - 1];
+		fz[i - 1][j - 1] = storage[half][z_coord][i - 1][j - 1];
+	}
+
+	double* theta_val = (double*) malloc(p->ny * sizeof(double));
+	for (int j = 1; j <= p->ny; j++) {
+		double y = p->c + (j - 1) * (p->d - p->c) / (p->n + 1);
+		double direction = 0.0;
+		theta_val[j - 1] = y;
+
+		int i;
+///x=a
+		i = 1;
+		fx[i - 1][j - 1] = -(p->h3 * cos(p->alfa / 2) + p->ra * sin(p->alfa / 2) * cos(y));
+		fy[i - 1][j - 1] = p->h3 * sin(p->alfa / 2) - p->ra * cos(p->alfa / 2) * cos(y);
+		fz[i - 1][j - 1] = p->ra * sin(y);
+///x=b
+		i = p->nx;
+
+		fx[i - 1][j - 1] = 0.0;
+		if ((y >= pi / 2) && (y <= 3 * pi / 2)) {
+			fy[i - 1][j - 1] = -p->apex * cos(y);
+		} else if ((y >= 3 * pi / 2) && (y <= 2 * pi + pi / 2)) {
+			fy[i - 1][j - 1] = p->apex * cos(y);
+		}
+
+		fz[i - 1][j - 1] = p->neck * sin(y);
+	}
+	return (theta_val);
+}
+
+void bound_v_correction_ver3(parms p, double**** storage, double** theta_val, int downstream_offset, int upstream_offset) {
+
+	for (int i = 1; i < p.nx - 1; i++) {
+		int ja0, ja1, ja2, j, jb0, jb1, jb2;
+
+		double xa0, xa1, xa2, x, xb0, xb1, xb2;
+		double ya0, ya1, ya2, y, yb0, yb1, yb2;
+		double za0, za1, za2, z, zb0, zb1, zb2;
+		double b0, b1, b2, b3, b4, b5;
+		double c, c0, c1, c2, c3, c4, c5;
+
+///For RIGHT Half start point
+		ja0 = 3;
+		ja1 = 2;
+		ja2 = 1;
+		j = 0;
+		jb0 = p.ny - 1 - 1;
+		jb1 = p.ny - 1 - 2;
+		jb2 = p.ny - 1 - 3;
+		c = theta_val[RIGHT][j];
+		c0 = theta_val[RIGHT][ja0];
+		c1 = theta_val[RIGHT][ja1];
+		c2 = theta_val[RIGHT][ja2];
+		c3 = theta_val[LEFT][jb0];
+		c4 = theta_val[LEFT][jb1];
+		c5 = theta_val[LEFT][jb2];
+
+		x = storage[RIGHT][x_coord][i][j];
+		xa0 = storage[RIGHT][x_coord][i][ja0];
+		xa1 = storage[RIGHT][x_coord][i][ja1];
+		xa2 = storage[RIGHT][x_coord][i][ja2];
+		xb0 = storage[LEFT][x_coord][i][jb0];
+		xb1 = storage[LEFT][x_coord][i][jb1];
+		xb2 = storage[LEFT][x_coord][i][jb2];
+		b0 = xa0;
+		b1 = (xa1 - xa0) / (c1 - c0);
+		b2 = (((xa2 - xa1) / (c2 - c1)) - b1) / (c2 - c0);
+		b3 = (((xb0 - xa2) / (c3 - c2)) - b2 - b1) / (c3 - c0);
+		b4 = (((xb1 - xb0) / (c4 - c3)) - b3 - b2 - b1) / (c4 - c0);
+		b5 = (((xb2 - xb1) / (c5 - c4)) - b4 - b3 - b2 - b1) / (c5 - c0);
+		x = b0 + b1 * (c - c0) + b2 * (c - c0) * (c - c1) + b3 * (c - c0) * (c - c1) * (c - c2) + b4 * (c - c0) * (c - c1) * (c - c2) * (c - c3)
+				+ b5 * (c - c0) * (c - c1) * (c - c2) * (c - c3) * (c - c4);
+		storage[RIGHT][x_coord][i][j] = x;
+		storage[LEFT][x_coord][i][p.ny - 1] = x;
+
+		y = storage[RIGHT][y_coord][i][j];
+		ya0 = storage[RIGHT][y_coord][i][ja0];
+		ya1 = storage[RIGHT][y_coord][i][ja1];
+		ya2 = storage[RIGHT][y_coord][i][ja2];
+		yb0 = storage[LEFT][y_coord][i][jb0];
+		yb1 = storage[LEFT][y_coord][i][jb1];
+		yb2 = storage[LEFT][y_coord][i][jb2];
+		b0 = ya0;
+		b1 = (ya1 - ya0) / (c1 - c0);
+		b2 = (((ya2 - ya1) / (c2 - c1)) - b1) / (c2 - c0);
+		b3 = (((yb0 - ya2) / (c3 - c2)) - b2 - b1) / (c3 - c0);
+		b4 = (((yb1 - yb0) / (c4 - c3)) - b3 - b2 - b1) / (c4 - c0);
+		b5 = (((yb2 - yb1) / (c5 - c4)) - b4 - b3 - b2 - b1) / (c5 - c0);
+		y = b0 + b1 * (c - c0) + b2 * (c - c0) * (c - c1) + b3 * (c - c0) * (c - c1) * (c - c2) + b4 * (c - c0) * (c - c1) * (c - c2) * (c - c3)
+				+ b5 * (c - c0) * (c - c1) * (c - c2) * (c - c3) * (c - c4);
+		storage[RIGHT][y_coord][i][j] = y;
+		storage[LEFT][y_coord][i][p.ny - 1] = y;
+
+		z = storage[RIGHT][z_coord][i][j];
+		/*xa0 = storage[RIGHT][z_coord][i][ja0];
+		 xa1 = storage[RIGHT][z_coord][i][ja1];
+		 xa2 = storage[RIGHT][z_coord][i][ja2];
+		 xb0 = storage[LEFT][z_coord][i][jb0];
+		 xb1 = storage[LEFT][z_coord][i][jb1];
+		 xb2 = storage[LEFT][z_coord][i][jb2];
+		 b0 = xa0;
+		 b1 = (xa1 - xa0) / (c1 - c0);
+		 b2 = (((xa2 - xa1) / (c2 - c1)) - b1) / (c2 - c0);
+		 b3 = (((xb0 - xa2) / (c3 - c2)) - b2 - b1) / (c3 - c0);
+		 b4 = (((xb1 - xb0) / (c4 - c3)) - b3 - b2 - b1) / (c4 - c0);
+		 b5 = (((xb2 - xb1) / (c5 - c4)) - b4 - b3 - b2 - b1) / (c5 - c0);
+		 z = b0 + b1 * (c - c0) + b2 * (c - c0) * (c - c1) + b3 * (c - c0) * (c - c1) * (c - c2) + b4 * (c - c0) * (c - c1) * (c - c2) * (c - c3)
+		 + b5 * (c - c0) * (c - c1) * (c - c2) * (c - c3) * (c - c4);*/
+		storage[RIGHT][z_coord][i][j] = z;
+		storage[LEFT][z_coord][i][p.ny - 1] = z;
+		printf("%2.7lf\t%2.7lf\t%2.7lf\n", 1e-3 * x, 1e-3 * y, 1e-3 * z);
+///For LEFT Half end point
+		/*	ja0 = p.ny - 1 - 2;
+		 ja1 = p.ny - 1 - 1;
+		 j = p.ny - 1;
+		 jb0 = 1;
+		 jb1 = 2;
+		 c = theta_val[LEFT][j];
+		 c0 = theta_val[LEFT][ja0];
+		 c1 = theta_val[LEFT][ja1];
+		 c2 = theta_val[RIGHT][jb0];
+		 c3 = theta_val[RIGHT][jb1];
+
+		 x = storage[LEFT][x_coord][i][j];
+		 xa0 = storage[LEFT][x_coord][i][ja0];
+		 xa1 = storage[LEFT][x_coord][i][ja1];
+		 xb0 = storage[RIGHT][x_coord][i][jb0];
+		 xb1 = storage[RIGHT][x_coord][i][jb1];
+		 b0 = xa0;
+		 b1 = (xa1 - xa0) / (c1 - c0);
+		 b2 = (((xb0 - xa1) / (c2 - c1)) - ((xa1 - xa0) / (c1 - c0))) / (c2 - c0);
+		 b3 = (((xb1 - xb0) / (c3 - c2)) - ((xb0 - xa1) / (c2 - c1)) - ((xa1 - xa0) / (c1 - c0))) / (c3 - c0);
+		 x = b0 + b1 * (c - c0) + b2 * (c - c0) * (c - c1) + b3 * (c - c0) * (c - c1) * (c - c2);
+		 storage[LEFT][x_coord][i][j] = x;
+
+		 y = storage[LEFT][y_coord][i][j];
+		 ya0 = storage[LEFT][y_coord][i][ja0];
+		 ya1 = storage[LEFT][y_coord][i][ja1];
+		 yb0 = storage[RIGHT][y_coord][i][jb0];
+		 yb1 = storage[RIGHT][y_coord][i][jb1];
+		 b0 = ya0;
+		 b1 = (ya1 - ya0) / (c1 - c0);
+		 b2 = (((yb0 - ya1) / (c2 - c1)) - ((ya1 - ya0) / (c1 - c0))) / (c2 - c0);
+		 b3 = (((yb1 - yb0) / (c3 - c2)) - ((yb0 - ya1) / (c2 - c1)) - ((ya1 - ya0) / (c1 - c0))) / (c3 - c0);
+		 y = b0 + b1 * (c - c0) + b2 * (c - c0) * (c - c1) + b3 * (c - c0) * (c - c1) * (c - c2);
+		 storage[LEFT][y_coord][i][j] = y;
+
+		 z = storage[LEFT][z_coord][i][j];
+		 za0 = storage[LEFT][z_coord][i][ja0];
+		 za1 = storage[LEFT][z_coord][i][ja1];
+		 zb0 = storage[RIGHT][z_coord][i][jb0];
+		 zb1 = storage[RIGHT][z_coord][i][jb1];
+		 b0 = za0;
+		 b1 = (za1 - za0) / (c1 - c0);
+		 b2 = (((zb0 - za1) / (c2 - c1)) - ((za1 - za0) / (c1 - c0))) / (c2 - c0);
+		 b3 = (((zb1 - zb0) / (c3 - c2)) - ((zb0 - za1) / (c2 - c1)) - ((za1 - za0) / (c1 - c0))) / (c3 - c0);
+		 z = b0 + b1 * (c - c0) + b2 * (c - c0) * (c - c1) + b3 * (c - c0) * (c - c1) * (c - c2);
+		 //storage[LEFT][z_coord][i][j] = z;*/
+	}
+}
+
+void bound_v_correction(parms* p, double**** storage, double** theta_val) {
+
+	for (int i = 1; i < p->nx - 1; i++) {
+		int ja0, ja1, ja2, j, jb0, jb1, jb2;
+
+		double xa0, x, xb0;
+		double ya0, y, yb0;
+		double za0, z, zb0;
+		double b0, b1;
+		double c, c0, c1;
+		double mu = 0.5;
+///For RIGHT Half start point
+		ja0 = p->ny - 1 - 1;
+		j = 0;
+		jb0 = 1;
+		c = theta_val[RIGHT][j];
+		c0 = theta_val[LEFT][ja0];
+		c1 = theta_val[RIGHT][jb0];
+
+		x = storage[RIGHT][x_coord][i][j];
+		xa0 = storage[LEFT][x_coord][i][ja0];
+		xb0 = storage[RIGHT][x_coord][i][jb0];
+		b0 = xa0;
+		b1 = (xb0 - xa0) / (c1 - c0);
+		x = b0 + ((xb0 - xa0) * mu);		// (c - c0) / (c1 - c0)); //b0 + b1 * (c - c0);
+		storage[RIGHT][x_coord][i][j] = x;
+		storage[LEFT][x_coord][i][p->ny - 1] = x;
+
+		y = storage[RIGHT][y_coord][i][j];
+		ya0 = storage[LEFT][y_coord][i][ja0];
+		yb0 = storage[RIGHT][y_coord][i][jb0];
+
+		b0 = ya0;
+		b1 = (yb0 - ya0) / (c1 - c0);
+		y = b0 + ((yb0 - ya0) * mu);		//(c - c0) / (c1 - c0));//b0 + b1 * (c - c0);
+		storage[RIGHT][y_coord][i][j] = y;
+		storage[LEFT][y_coord][i][p->ny - 1] = y;
+
+		z = storage[RIGHT][z_coord][i][j];
+		za0 = storage[LEFT][z_coord][i][ja0];
+		zb0 = storage[RIGHT][z_coord][i][jb0];
+
+		b0 = za0;
+		b1 = (zb0 - za0) / (c1 - c0);
+		z = b0 + ((zb0 - za0) * mu);		//(c - c0) / (c1 - c0));//b0 + b1 * (c - c0);
+		storage[RIGHT][z_coord][i][j] = z;
+		///For LEFT Half start point
+		storage[LEFT][z_coord][i][p->ny - 1] = z;
+
+		///For RIGHT Half end point
+		ja0 = p->ny - 1 - 1;
+		j = p->ny - 1;
+		jb0 = 1;
+		c = theta_val[RIGHT][j];
+		c0 = theta_val[RIGHT][ja0];
+		c1 = theta_val[LEFT][jb0];
+
+		x = storage[RIGHT][x_coord][i][j];
+		xa0 = storage[RIGHT][x_coord][i][ja0];
+		xb0 = storage[LEFT][x_coord][i][jb0];
+		b0 = xa0;
+		b1 = (xb0 - xa0) / (c1 - c0);
+		x = b0 + ((xb0 - xa0) * mu);		// (c - c0) / (c1 - c0)); //b0 + b1 * (c - c0);
+		storage[RIGHT][x_coord][i][j] = x;
+		storage[LEFT][x_coord][i][0] = x;
+
+		y = storage[RIGHT][y_coord][i][j];
+		ya0 = storage[RIGHT][y_coord][i][ja0];
+		yb0 = storage[LEFT][y_coord][i][jb0];
+
+		b0 = ya0;
+		b1 = (yb0 - ya0) / (c1 - c0);
+		y = b0 + ((yb0 - ya0) * mu);		//(c - c0) / (c1 - c0));//b0 + b1 * (c - c0);
+		storage[RIGHT][y_coord][i][j] = y;
+		storage[LEFT][y_coord][i][0] = y;
+
+		z = storage[RIGHT][z_coord][i][j];
+		za0 = storage[RIGHT][z_coord][i][ja0];
+		zb0 = storage[LEFT][z_coord][i][jb0];
+
+		b0 = za0;
+		b1 = (zb0 - za0) / (c1 - c0);
+		z = b0 + ((zb0 - za0) * mu);		//(c - c0) / (c1 - c0));//b0 + b1 * (c - c0);
+		storage[RIGHT][z_coord][i][j] = z;
+		///For LEFT Half end point
+		storage[LEFT][z_coord][i][0] = z;
+
+	}
+}
+
+void itereate_to_correct(int branch, parms *p, double** fx, double** fy, double** fz, double**** storage, double* bda, double* bdb, double* bdc,
+		double* bdd, int idf, int iflag, double tol, int itcg, double* w, int lw, double** theta_val) {
+	if (branch == P) {
+		//Do nothing
+	} else if (branch == L) {
+		for (int corrections = 0; corrections < p->max_corrections; corrections++) {
+			p->alfa = pi - p->angle;
+			p->c = 3 * pi / 2;
+			p->d = 2 * pi + pi / 2;
+			for (int i = 0; i < 2; i++) {
+				theta_val[i] = (double*) malloc(p->ny * sizeof(double));
+			}
+			theta_val[LEFT] = dirichlet_boundary_outer_wall_corrected_v_boundary(p, storage, fx, fy, fz, LEFT);
+			set_neumann_conditions(p, L, bda, bdb, bdc, bdd, LEFT, x_coord);
+			fx = solve(p, bda, bdb, bdc, bdd, fx, idf, iflag, tol, itcg, w, lw);
+			set_neumann_conditions(p, L, bda, bdb, bdc, bdd, LEFT, y_coord);
+			fy = solve(p, bda, bdb, bdc, bdd, fy, idf, iflag, tol, itcg, w, lw);
+			set_neumann_conditions(p, L, bda, bdb, bdc, bdd, LEFT, z_coord);
+			fz = solve(p, bda, bdb, bdc, bdd, fz, idf, iflag, tol, itcg, w, lw);
+			store_arrays(p, fx, fy, fz, storage, LEFT);
+			initialize_f(p, fx, fy, fz);
+			initialize_bd(p->n, bda);
+			initialize_bd(p->n, bdb);
+			initialize_bd(p->m, bdc);
+			initialize_bd(p->m, bdd);
+			//Inner wall
+			p->alfa = pi - p->angle;
+			p->c = pi / 2;
+			p->d = 3 * pi / 2;
+			theta_val[RIGHT] = dirichlet_boundary_inner_wall_corrected_v_boundary(p, storage, fx, fy, fz, RIGHT);
+			set_neumann_conditions(p, L, bda, bdb, bdc, bdd, RIGHT, x_coord);
+			fx = solve(p, bda, bdb, bdc, bdd, fx, idf, iflag, tol, itcg, w, lw);
+			set_neumann_conditions(p, L, bda, bdb, bdc, bdd, RIGHT, y_coord);
+			fy = solve(p, bda, bdb, bdc, bdd, fy, idf, iflag, tol, itcg, w, lw);
+			set_neumann_conditions(p, L, bda, bdb, bdc, bdd, RIGHT, z_coord);
+			fz = solve(p, bda, bdb, bdc, bdd, fz, idf, iflag, tol, itcg, w, lw);
+			store_arrays(p, fx, fy, fz, storage, RIGHT);
+			initialize_f(p, fx, fy, fz);
+			initialize_bd(p->n, bda);
+			initialize_bd(p->n, bdb);
+			initialize_bd(p->m, bdc);
+			initialize_bd(p->m, bdd);
+
+			bound_v_correction(p, storage, theta_val);
+		}
+		/************************************************************/
+		p->alfa = pi - p->angle;
+		p->c = 3 * pi / 2;
+		p->d = 2 * pi + pi / 2;
+		for (int i = 0; i < 2; i++) {
+			theta_val[i] = (double*) malloc(p->ny * sizeof(double));
+		}
+		theta_val[LEFT] = dirichlet_boundary_outer_wall_corrected_v_boundary(p, storage, fx, fy, fz, LEFT);
+		set_neumann_conditions(p, L, bda, bdb, bdc, bdd, LEFT, x_coord);
+		fx = solve(p, bda, bdb, bdc, bdd, fx, idf, iflag, tol, itcg, w, lw);
+
+		set_neumann_conditions(p, L, bda, bdb, bdc, bdd, LEFT, y_coord);
+		fy = solve(p, bda, bdb, bdc, bdd, fy, idf, iflag, tol, itcg, w, lw);
+
+		set_neumann_conditions(p, L, bda, bdb, bdc, bdd, LEFT, z_coord);
+		fz = solve(p, bda, bdb, bdc, bdd, fz, idf, iflag, tol, itcg, w, lw);
+		store_arrays(p, fx, fy, fz, storage, LEFT);
+		initialize_f(p, fx, fy, fz);
+		initialize_bd(p->n, bda);
+		initialize_bd(p->n, bdb);
+		initialize_bd(p->m, bdc);
+		initialize_bd(p->m, bdd);
+
+		//Inner wall
+		p->alfa = pi - p->angle;
+		p->c = pi / 2;
+		p->d = 3 * pi / 2;
+		theta_val[RIGHT] = dirichlet_boundary_inner_wall_corrected_v_boundary(p, storage, fx, fy, fz, RIGHT);
+		set_neumann_conditions(p, L, bda, bdb, bdc, bdd, RIGHT, x_coord);
+		fx = solve(p, bda, bdb, bdc, bdd, fx, idf, iflag, tol, itcg, w, lw);
+
+		set_neumann_conditions(p, L, bda, bdb, bdc, bdd, RIGHT, y_coord);
+		fy = solve(p, bda, bdb, bdc, bdd, fy, idf, iflag, tol, itcg, w, lw);
+		set_neumann_conditions(p, L, bda, bdb, bdc, bdd, RIGHT, z_coord);
+		fz = solve(p, bda, bdb, bdc, bdd, fz, idf, iflag, tol, itcg, w, lw);
+		store_arrays(p, fx, fy, fz, storage, RIGHT);
+		initialize_f(p, fx, fy, fz);
+		initialize_bd(p->n, bda);
+		initialize_bd(p->n, bdb);
+		initialize_bd(p->m, bdc);
+		initialize_bd(p->m, bdd);
+	} else if (branch == R) {
+		for (int corrections = 0; corrections < p->max_corrections; corrections++) {
+			p->alfa = pi + p->angle;
+			p->c = pi / 2;
+			p->d = 3 * pi / 2;
+
+			theta_val[LEFT] = dirichlet_boundary_outer_wall_corrected_v_boundary(p, storage, fx, fy, fz, LEFT);
+			set_neumann_conditions(p, R, bda, bdb, bdc, bdd, LEFT, x_coord);
+			fx = solve(p, bda, bdb, bdc, bdd, fx, idf, iflag, tol, itcg, w, lw);
+			set_neumann_conditions(p, R, bda, bdb, bdc, bdd, LEFT, y_coord);
+			fy = solve(p, bda, bdb, bdc, bdd, fy, idf, iflag, tol, itcg, w, lw);
+			set_neumann_conditions(p, R, bda, bdb, bdc, bdd, LEFT, z_coord);
+			fz = solve(p, bda, bdb, bdc, bdd, fz, idf, iflag, tol, itcg, w, lw);
+
+			store_arrays(p, fx, fy, fz, storage, LEFT);
+			initialize_f(p, fx, fy, fz);
+			initialize_bd(p->n, bda);
+			initialize_bd(p->n, bdb);
+			initialize_bd(p->m, bdc);
+			initialize_bd(p->m, bdd);
+
+			//Inner wall
+			p->alfa = pi + p->angle;
+			p->c = 3 * pi / 2;
+			p->d = 2 * pi + pi / 2;
+			theta_val[RIGHT] = dirichlet_boundary_inner_wall_corrected_v_boundary(p, storage, fx, fy, fz, RIGHT);
+			set_neumann_conditions(p, R, bda, bdb, bdc, bdd, RIGHT, x_coord);
+			fx = solve(p, bda, bdb, bdc, bdd, fx, idf, iflag, tol, itcg, w, lw);
+			set_neumann_conditions(p, R, bda, bdb, bdc, bdd, RIGHT, y_coord);
+			fy = solve(p, bda, bdb, bdc, bdd, fy, idf, iflag, tol, itcg, w, lw);
+			set_neumann_conditions(p, R, bda, bdb, bdc, bdd, RIGHT, z_coord);
+			fz = solve(p, bda, bdb, bdc, bdd, fz, idf, iflag, tol, itcg, w, lw);
+
+			store_arrays(p, fx, fy, fz, storage, RIGHT);
+			initialize_f(p, fx, fy, fz);
+			initialize_bd(p->n, bda);
+			initialize_bd(p->n, bdb);
+			initialize_bd(p->m, bdc);
+			initialize_bd(p->m, bdd);
+
+			bound_v_correction(p, storage, theta_val);
+		}
+		p->alfa = pi + p->angle;
+		p->c = pi / 2;
+		p->d = 3 * pi / 2;
+
+		theta_val[LEFT] = dirichlet_boundary_outer_wall_corrected_v_boundary(p, storage, fx, fy, fz, LEFT);
+		set_neumann_conditions(p, R, bda, bdb, bdc, bdd, LEFT, x_coord);
+		fx = solve(p, bda, bdb, bdc, bdd, fx, idf, iflag, tol, itcg, w, lw);
+		set_neumann_conditions(p, R, bda, bdb, bdc, bdd, LEFT, y_coord);
+		fy = solve(p, bda, bdb, bdc, bdd, fy, idf, iflag, tol, itcg, w, lw);
+		set_neumann_conditions(p, R, bda, bdb, bdc, bdd, LEFT, z_coord);
+		fz = solve(p, bda, bdb, bdc, bdd, fz, idf, iflag, tol, itcg, w, lw);
+
+		store_arrays(p, fx, fy, fz, storage, LEFT);
+		initialize_f(p, fx, fy, fz);
+		initialize_bd(p->n, bda);
+		initialize_bd(p->n, bdb);
+		initialize_bd(p->m, bdc);
+		initialize_bd(p->m, bdd);
+
+		//Inner wall
+		p->alfa = pi + p->angle;
+		p->c = 3 * pi / 2;
+		p->d = 2 * pi + pi / 2;
+		theta_val[RIGHT] = dirichlet_boundary_inner_wall_corrected_v_boundary(p, storage, fx, fy, fz, RIGHT);
+		set_neumann_conditions(p, R, bda, bdb, bdc, bdd, RIGHT, x_coord);
+		fx = solve(p, bda, bdb, bdc, bdd, fx, idf, iflag, tol, itcg, w, lw);
+		set_neumann_conditions(p, R, bda, bdb, bdc, bdd, RIGHT, y_coord);
+		fy = solve(p, bda, bdb, bdc, bdd, fy, idf, iflag, tol, itcg, w, lw);
+		set_neumann_conditions(p, R, bda, bdb, bdc, bdd, RIGHT, z_coord);
+		fz = solve(p, bda, bdb, bdc, bdd, fz, idf, iflag, tol, itcg, w, lw);
+
+		store_arrays(p, fx, fy, fz, storage, RIGHT);
+		initialize_f(p, fx, fy, fz);
+		initialize_bd(p->n, bda);
+		initialize_bd(p->n, bdb);
+		initialize_bd(p->m, bdc);
+		initialize_bd(p->m, bdd);
+	}
+
+}
+
+void set_neumann_conditions(parms* p, int branch, double* bda, double* bdb, double* bdc, double* bdd, int half, int coordinate) {
+	int scale = 1;
+	/// If branch is parent
+	if (branch == P) {
+		if (half == LEFT) {
+			if (coordinate == x_coord) {
+				for (int k = 0; k < p->n; k++) {
+					bda[k] = p->s0;
+					bdb[k] = 0.0;
+				}
+			} else if (coordinate == y_coord) {
+				for (int k = 0; k < p->n; k++) {
+					bda[k] = -p->h1;
+					bdb[k] = p->h1;
+				}
+			} else if (coordinate == z_coord) {
+				for (int k = 0; k < p->n; k++) {
+					bda[k] = 0;
+					bdb[k] = 0;
+				}
+
+			}
+		} else if (half == RIGHT) {
+			if (coordinate == x_coord) {
+				for (int k = 0; k < p->n; k++) {
+					bda[k] = -p->s0;
+					bdb[k] = 0.0;
+				}
+			} else if (coordinate == y_coord) {
+				for (int k = 0; k < p->n; k++) {
+					bda[k] = -p->h1;
+					bdb[k] = p->h1;
+				}
+			} else if (coordinate == z_coord) {
+				for (int k = 0; k < p->n; k++) {
+					bda[k] = 0;
+					bdb[k] = 0;
+				}
+			}
+		}
+	}
+	/// If branch is Left daughter
+	else if (branch == L) {
+		if (half == LEFT) {
+			if (coordinate == x_coord) {
+				for (int k = 0; k < p->n; k++) {
+					bda[k] = p->s0 * cos(p->angle);
+					bdb[k] = 0;
+				}
+			} else if (coordinate == y_coord) {
+				for (int k = 0; k < p->n; k++) {
+					bda[k] = p->s0 * sin(p->angle);
+					bdb[k] = -3.5 * p->s1;	// * cos(p->angle);
+				}
+			} else if (coordinate == z_coord) {
+				for (int k = 0; k < p->n; k++) {
+					bda[k] = 0;
+					bdb[k] = 0;
+				}
+			}
+		} else if (half == RIGHT) {
+			if (coordinate == x_coord) {
+				for (int k = 0; k < p->n; k++) {
+					bda[k] = 0;
+					bdb[k] = p->apex_scaling * p->s1;	// * sin(p->angle);
+				}
+			} else if (coordinate == y_coord) {
+				for (int k = 0; k < p->n; k++) {
+					bda[k] = p->s0 * cos(p->alfa);
+					bdb[k] = p->s1;
+				}
+			} else if (coordinate == z_coord) {
+				for (int k = 0; k < p->n; k++) {
+					bda[k] = 0;
+					bdb[k] = 0;
+				}
+			}
+		}
+	}
+	/// If branch is Right daughter
+	else if (branch == R) {
+		if (half == LEFT) {
+			if (coordinate == x_coord) {
+				for (int k = 0; k < p->n; k++) {
+					bda[k] = 0;	//* cos(p->angle);
+					bdb[k] = 0;	//p->s0;
+				}
+			} else if (coordinate == y_coord) {
+				for (int k = 0; k < p->n; k++) {
+					bda[k] = 0;	//p->s1;	//* sin(p->angle);
+					bdb[k] = -3 * p->s1;	//p->s0;
+				}
+			} else if (coordinate == z_coord) {
+				for (int k = 0; k < p->n; k++) {
+					bda[k] = 0;
+					bdb[k] = 0;
+				}
+			}
+		} else if (half == RIGHT) {
+			if (coordinate == x_coord) {
+				for (int k = 0; k < p->n; k++) {
+					bda[k] = -p->s0 * sin(p->alfa);	//-p->s1 * cos(p->angle);
+					bdb[k] = -p->apex_scaling * p->s1;	// * sin(p->angle);
+				}
+			} else if (coordinate == y_coord) {
+				for (int k = 0; k < p->n; k++) {
+					bda[k] = p->s0 * cos(p->alfa);
+					bdb[k] = p->s1;	//p->s0;	//-p->s0 * cos(p->angle);
+				}
+			} else if (coordinate == z_coord) {
+				for (int k = 0; k < p->n; k++) {
+					bda[k] = 0;
+					bdb[k] = 0;
+				}
+			}
+		}
+	}
+	/// If branch is Endcaps
+	else if (branch == endcaps) {
+		if (half == LEFT) {
+			if (coordinate == x_coord) {
+				for (int k = 0; k < p->n; k++) {
+					bda[k] = 0.0;
+					bdb[k] = 0.0;
+				}
+			} else if (coordinate == y_coord) {
+				for (int k = 0; k < p->n; k++) {
+					bda[k] = 0.0;
+					bdb[k] = 0.0;
+				}
+			} else if (coordinate == z_coord) {
+				for (int k = 0; k < p->n; k++) {
+					bda[k] = 0.0;
+					bdb[k] = 0.0;
+				}
+			}
+		} else if (half == RIGHT) {
+			if (coordinate == x_coord) {
+				for (int k = 0; k < p->n; k++) {
+					bda[k] = 0.0;
+					bdb[k] = 0.0;
+				}
+			} else if (coordinate == y_coord) {
+				for (int k = 0; k < p->n; k++) {
+					bda[k] = 0.0;
+					bdb[k] = 0.0;
+				}
+			} else if (coordinate == z_coord) {
+				for (int k = 0; k < p->n; k++) {
+					bda[k] = 0.0;
+					bdb[k] = 0.0;
+				}
+			}
+		}
 	}
 }
