@@ -30,22 +30,22 @@ int main(int argc, char* argv[]) {
 			if (argv[i][0] == '-') {
 				if (argv[i][1] == 'c') {
 					p.max_corrections = atoi(argv[i + 1]);
-				} else if (argv[i][1] == 'E') {
+				} else if (argv[i][1] == 'E') { // Number of ECs in axial direction. E.g. 4.
 					p.ECs = atoi(argv[i + 1]);
-				} else if (argv[i][1] == 'S') {
+				} else if (argv[i][1] == 'S') { // Number of SMCs in circumferential direction. E.g. 4.
 					p.SMCs = atoi(argv[i + 1]);
-				} else if (argv[i][1] == 'm') {
+				} else if (argv[i][1] == 'm') { // Number of grid points in axial direction. Must be odd. E.g. 33.
 					p.m = atoi(argv[i + 1]);
-				} else if (argv[i][1] == 'n') {
+				} else if (argv[i][1] == 'n') { // Number of grid points in circumferential direction for a half-circle. Must be odd. E.g. 15.
 					p.n = atoi(argv[i + 1]);
-				} else if (argv[i][1] == 'D') {
+				} else if (argv[i][1] == 'D') {      // Downstream skip. E.g. 0.
 					parent_grid_point_skip = atoi(argv[i + 1]);
-				} else if (argv[i][1] == 'U') {
+				} else if (argv[i][1] == 'U') {        // Upstream skip. E.g. 0.
 					daughter_grid_point_skip = atoi(argv[i + 1]);
-				} else if (argv[i][1] == 'l') {
+				} else if (argv[i][1] == 'l') { // Length of a branch in mm. Must be langer than radius r. E.g. 25.
 					p.h1 = atof(argv[i + 1]) * (-1);
 					p.h3 = atof(argv[i + 1]);
-				} else if (argv[i][1] == 'r') {
+				} else if (argv[i][1] == 'r') {           // Raduis r. E.g. 2.5.
 					p.rb = atof(argv[i + 1]);
 				}
 			}
