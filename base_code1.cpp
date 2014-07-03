@@ -7,6 +7,7 @@ int main(int argc, char* argv[]) {
 	p.alpha = 0.0;
 	p.beta = 0.0;
 
+	// Four corners of the UV space.
 	p.a = 0.0;
 	p.b = 1.0;
 	p.c = 0.0;
@@ -434,13 +435,13 @@ int main(int argc, char* argv[]) {
 	fprintf(fw, "Total number of cells per branch (vtk cells)= %d\t m = %d n= %d\n", info[3], info[4], info[5]);
 
 	fprintf(fw, "Total number of SMC mesh points per processor mesh (vtk points)= %d\t m = %d n= %d\n", info[6], info[7], info[8]);
-	fprintf(fw, "Total number of SMC mesh cells per processor mesh (vtk points)= %d\t m = %d n= %d\n", info[9], info[10], info[11]);
+	fprintf(fw, "Total number of SMC mesh cells per processor mesh (vtk cells)= %d\t m = %d n= %d\n", info[9], info[10], info[11]);
 
 	fprintf(fw, "Total number of EC mesh points per processor mesh (vtk points)= %d\t m = %d n= %d\n", info[12], info[13], info[14]);
-	fprintf(fw, "Total number of EC mesh cells per processor mesh (vtk points)= %d\t m = %d n= %d\n", info[15], info[16], info[17]);
+	fprintf(fw, "Total number of EC mesh cells per processor mesh (vtk cells)= %d\t m = %d n= %d\n", info[15], info[16], info[17]);
 
 	fprintf(fw, "Total number of EC mesh centeroid points per processor mesh (vtk points)= %d\t m = %d n= %d\n", info[18], info[16], info[17]);
-	fprintf(fw, "Total number of EC mesh centeroid cells per processor mesh (vtk points)= %d\t m = %d n= %d\n", info[18], info[16], info[17]);
+	fprintf(fw, "Total number of EC mesh centeroid cells per processor mesh (vtk cells)= %d\t m = %d n= %d\n", info[18], info[16], info[17]);
 
 	fclose(fw);
 }
