@@ -28,33 +28,32 @@ How to Run
 Command Line Arguments
 ----------------------
 
-TODO: Instead of example values, give the default values, as they are specified in the code.
-
  * `E` - Number of ECs per core in axial direction; default is `4`.
  * `S` - Number of SMCs per core in circumferential direction; default is `3`.
- * `m` - Number of grid points in axial direction; default is `11`. The value must be
- odd and >= 3 to make sure we end up with even number of processors. If we need
- `P` cores in longitudinal direction and `m` is the number of points in axial
- direction, then `m + 2` grid points will be generated resulting in `m + 2 - 1`
- surface mesh quads each representing an MPI process/core. The extra two points
- are the boundary points. 
- * `n` - Number of grid points in circumferential direction for a half-circle; default is `5`. The value must be odd and >= 3 to make sure we end up with even
+ * `m` - Number of grid points in axial direction; default is `11`. The value
+ must be odd and >= 3 to make sure we end up with even number of processors. If
+ we need `P` cores in longitudinal direction and `m` is the number of points in
+ axial direction, then `m + 2` grid points will be generated resulting in
+ `m + 2 - 1` surface mesh quads each representing an MPI process/core. The extra
+ two points are the boundary points. 
+ * `n` - Number of grid points in circumferential direction for a half-circle;
+ default is `5`. The value must be odd and >= 3 to make sure we end up with even
  number of processors. Every cyllinder will be generated in two parts, one for
  each side, as if the cyllinder was split along its long axis. If we need `Q`
  cores in circumferential direction and `n` is the number of points in the
  hemicyllinder, then `n + 2` points will be generated for a hemicyllinder
  resulting in `n + 2 - 1` (which is `Q / 2`) surface mesh quad each representing
  an MPI process/core.
- * `D` - Downstream skip; default is `0`. This parameter is the outlet skip on the
- 'daugter' branches specifying the number of additional points in the mesh which
- will only appear in the STL file (triangulated version of the mesh) to avoid
- boundary condition artifacts in the CFD solution.
+ * `D` - Downstream skip; default is `0`. This parameter is the outlet skip on
+ the 'daughter' branches specifying the number of additional points in the mesh
+ which will only appear in the STL file (triangulated version of the mesh) to
+ avoid boundary condition artifacts in the CFD solution.
  * `U` - Upstream skip; default is `0`. This parameter is the inlet skip on the
  'parent' branches specifying the number of points in the mesh which will only
  appear in the STL file (triangulated version of the mesh) to aviod boundary
  condition artifacts in the CFD solution.
- * `l` - Length of a branch in mm; default is `25`. Must be langer than radius `r` and
- least 10 times greater than `r` to provide a correct CFD solution.
+ * `l` - Length of a branch in mm; default is `25`. Must be langer than radius
+ `r` and least 10 times greater than `r` to provide a correct CFD solution.
  * `r` - Raduis r in mm; default is 2.5.
 
 For example, to produce a dataset that fits into 4,032 cores and three branches,
@@ -79,7 +78,6 @@ calculated based on the values of `m` and `n`.
 In this case the values are as follows:
 
     ./test -m 13 -n 47 -E 27 -S 3 -r 2.5 -l 25
-
 
 Output
 ======
