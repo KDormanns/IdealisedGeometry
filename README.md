@@ -15,12 +15,15 @@ functionality in the SurfaceMeshGenerator repository:
 How to Compile
 ==============
 
-At the moment this code compiles only on Foster. To compile run the provided
-shell script:
+Configure the project with CMake and specify the *out-of-source* build
+directory. CMake can be run in GUI or CLI modes. All default values are fine,
+but your build system must have *gfortran* compiler. Otherwise, it would be
+fairly straightforward to modify the top-level CMakeLists.txt to include older
+Fortran compilers.
 
-    build.sh
-    
-which will produce an executable file 'test'.
+After the the project has been configured, it can be opened and compiled with
+the target IDE, or in the case of Unix Makefile configuration simply run *make*
+in the build directory. The generated executable is called *IdealisedGeometry*.
 
 How to Run
 ==========
@@ -77,7 +80,7 @@ calculated based on the values of `m` and `n`.
 
 In this case the values are as follows:
 
-    ./test -m 13 -n 47 -E 27 -S 3 -r 2.5 -l 25
+    ./IdealisedGeometry -m 13 -n 47 -E 27 -S 3 -r 2.5 -l 25
 
 Output
 ======
