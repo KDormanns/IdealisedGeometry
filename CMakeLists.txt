@@ -23,8 +23,10 @@ add_subdirectory(srcLib/blas)
 add_subdirectory(srcLib/linpack)
 add_subdirectory(srcLib/dbihar)
 
-add_executable(IdealisedGeometry src/functionality.h src/functions.cpp src/main.cpp)
-target_link_libraries(IdealisedGeometry
+file(GLOB SRCs src/*.h src/*.cpp)
+add_executable(meshGenerator ${SRCs})
+
+target_link_libraries(meshGenerator
 	dbihar
 	linpack
 	blas
